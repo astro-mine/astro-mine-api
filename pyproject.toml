@@ -1,0 +1,156 @@
+# astro-mine-api — the REST distribution (architecture/api.md; roadmap RM-DIST-03).
+#
+# Every REST surface the platform serves, as FastAPI route modules over
+# `astro-mine-platform`'s ordinary Python API. The route code here was *ported*, not
+# rewritten: it is the same code that ran in astro-mine-hub, astro-mine-studio,
+# astro-mine-cloud and astro-mine-bench, with the import paths rewritten and nothing
+# else. Route paths, request/response models, status codes and factory signatures are
+# unchanged, so a client cannot tell which distribution answered it.
+#
+# Build backend is hatchling (not maturin): this distribution is pure Python. The Rust
+# safety core rides the platform wheel, where it belongs.
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "astro-mine-api"
+dynamic = ["version"]
+description = "Astro-Mine-API — the REST tier: the Hub registry API, the Studio API, Cloud's submission edge and the Bench leaderboard, as route modules over astro-mine-platform."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+authors = [{ name = "Astro-Mine project contributors" }]
+keywords = ["astro-mine", "rest", "fastapi", "openapi", "swarm-robotics", "isru"]
+classifiers = [
+  # `3 - Alpha`: this distribution ships four working REST surfaces from its first commit —
+  # they have been serving from the component repositories for a phase.
+  "Development Status :: 3 - Alpha",
+  "Environment :: Web Environment",
+  "Framework :: FastAPI",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3.12",
+]
+
+# The hosted tier's dependencies, and only the hosted tier's. `astro-mine-platform` carries
+# every library the routes call; what is added here is the web edge itself plus the backing
+# stores the *service* needs and the library does not (api.md §6, conventions.md §7.2 tier 2).
+#
+# There are deliberately no extras. api.md §6 is one image whose deployment enables the
+# surfaces it wants, so a partial install would be a footgun: a deployment that enables Bench
+# on a wheel installed without `[bench]` fails at request time, not install time. One
+# distribution, all four surfaces, always resolvable.
+dependencies = [
+  # The library half. Everything a route handler does is a call into this.
+  "astro-mine-platform",
+  # The web edge. `>=0.139.0` is astro-mine-studio's floor — the highest of the four ported
+  # surfaces (Hub/Cloud/Bench asked only for >=0.110), so it is the one that binds.
+  "fastapi>=0.139.0",
+  # The ASGI server. In the base install rather than behind a `[serve]` extra because this
+  # distribution *is* the server; a wheel that cannot be run is not a deployable.
+  "uvicorn>=0.29",
+  # Hub's hosted catalog (`hub.index.sql_catalog`) and Bench's durable submission store
+  # (`bench.leaderboard._sql.SqlStore`) are one SQLAlchemy code path over SQLite (tests) or
+  # PostgreSQL (the hosted tier); psycopg is the Postgres driver. The platform declares these
+  # under `bench-leaderboard` for the library half — named through the platform rather than
+  # re-pinned here so the two cannot resolve differently.
+  "astro-mine-platform[bench-leaderboard]",
+  "sqlalchemy>=2.0",
+  "psycopg[binary]>=3.1",
+  # The `vector(dim)` column + HNSW index Hub's semantic search runs against on PostgreSQL
+  # (hub.md §8). PostgreSQL-only: SQLite degrades to a JSON column and in-process ranking.
+  "pgvector>=0.3",
+  # Bench verifies OIDC bearer tokens against the IdP's public JWKS (bench#29), and its
+  # supply-chain path fetches over HTTP.
+  "pyjwt[crypto]>=2.8",
+  "httpx>=0.27",
+  # Telemetry is a normative convention of this tier, not an option (api.md §4): OpenTelemetry
+  # traces span a request into the library call it makes, and `GET /bench/metrics` serves the
+  # Prometheus series bench.md §10 names. The platform keeps these behind an extra because a
+  # library that is merely imported emits nothing; a *service* that cannot be observed is a
+  # deployment defect, and without them the metrics route answers with an "install the extra"
+  # placeholder instead of data.
+  "astro-mine-platform[bench-observability]",
+]
+
+[project.urls]
+Homepage = "https://github.com/astro-mine/astro-mine-api"
+Documentation = "https://github.com/astro-mine/docs"
+Issues = "https://github.com/astro-mine/astro-mine-api/issues"
+
+[tool.uv.sources]
+# `branch = "main"`, NOT a tag or rev — api.md §7 is normative: "The build MUST run against the
+# platform at HEAD, not a released pin" (conventions.md §3.1, §11). The REST tier is the
+# platform's own downstream canary: a platform change that breaks a route must break this
+# repository's CI on the commit that makes it, not a release later.
+#
+# This is the one repository in the workspace where a floating dependency is the requirement
+# rather than a smell. Do not "fix" it to a rev by copy-paste from astro-mine-cli.
+astro-mine-platform = { git = "https://github.com/astro-mine/astro-mine-platform.git", branch = "main" }
+
+[dependency-groups]
+dev = [
+  "pytest>=8.2",
+  "pytest-cov>=5.0",
+  "ruff>=0.6",
+  "mypy>=1.11",
+  "pre-commit>=3.7",
+  # Starlette's TestClient transport: every route test in this repository drives the app
+  # in-process over it, with no live server and no network.
+  "httpx>=0.27",
+  # The Studio surface's publish seam signs campaigns, and the Hub surface's admission path
+  # builds adversarial key material to prove what it rejects. The signer itself is Seal's,
+  # in-package via the platform; only the test fixtures need cryptography directly.
+  "cryptography>=42",
+  # Bench's durable store and Hub's SQL catalog are exercised against SQLite in the test lane.
+  "sqlalchemy>=2.0",
+]
+
+[tool.hatch.version]
+source = "vcs"
+raw-options = { local_scheme = "no-local-version" }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/astro_mine_api"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency/parameter markers are called in defaults by design; B008 does not apply.
+# (astro-mine-bench carried the same three entries for the same route code.)
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+# uvicorn and pgvector ship no type stubs; both are optional-at-runtime edges (uvicorn is
+# imported only by the runner, pgvector only on the PostgreSQL path).
+module = ["uvicorn.*", "pgvector.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.coverage.run]
+source = ["src/astro_mine_api"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "^\\s*\\.\\.\\.$",
+  "@(typing\\.)?overload",
+]

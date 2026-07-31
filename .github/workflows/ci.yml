@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The REST tier's offline gate: ruff/mypy/pytest + the coverage gate. No live infra — Hub's
+  # catalog and Bench's submission store both run on SQLite, the registries are local OCI layouts,
+  # and every route is driven in-process through Starlette's TestClient. No server, no network.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # hatch-vcs derives the version from git history; a shallow clone has none, and the
+          # build then fails or stamps a wrong version.
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      # astro-mine-platform is a private repo pinned as a uv git source
+      # (pyproject.toml [tool.uv.sources]); rewrite HTTPS GitHub fetches to use the
+      # CORE_REPO_TOKEN secret so `uv sync` can resolve it during private incubation.
+      - name: Authenticate to private dependencies
+        env:
+          CORE_REPO_TOKEN: ${{ secrets.CORE_REPO_TOKEN }}
+        run: |
+          git config --global \
+            url."https://x-access-token:${CORE_REPO_TOKEN}@github.com/".insteadOf \
+            "https://github.com/"
+
+      # NOT `--locked`. This repository's one dependency is deliberately pinned to the platform's
+      # `main` (api.md §7: "The build MUST run against the platform at HEAD, not a released pin"),
+      # so a lockfile that cannot move would defeat the reason the pin floats — this tier is the
+      # platform's downstream canary, and it has to resolve the platform commit that just landed.
+      # `uv sync -U` re-resolves that one source; everything else still comes from the lockfile.
+      - name: Sync dependencies
+        run: uv sync --upgrade-package astro-mine-platform
+
+      - name: Lint (ruff)
+        # `uv run ruff`, never a pinned `uvx ruff`: the pinned form silently misses rules added
+        # in newer releases, which surfaces as a CI-only failure the next time anything bumps.
+        run: uv run ruff check .
+
+      - name: Format check (ruff)
+        run: uv run ruff format --check .
+
+      - name: Type-check (mypy)
+        run: uv run mypy src
+
+      - name: Test (pytest + coverage gate)
+        run: uv run pytest --cov --cov-report=term-missing --cov-fail-under=95

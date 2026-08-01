@@ -59,6 +59,8 @@ from fastapi import APIRouter, FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from pydantic import Field, ValidationError
 
+from astro_mine_api._cors import add_cors
+
 __all__ = [
     "ASSET_STATIC_PREFIX",
     "PREFIX",
@@ -418,6 +420,9 @@ def create_app(
     publish/terrain/catalog routes answer 503 rather than pretending.
     """
     app = FastAPI(title="Astro-Mine-Studio", version=__version__)
+    # The browser tier calls this API cross-origin (_cors.py). Applied here as well as in
+    # the composed app so a route test drives an app that behaves like the deployed one.
+    add_cors(app)
     mount_static(app, world_cache_dir=world_cache_dir, asset_cache_dir=asset_cache_dir)
     app.include_router(
         build_router(

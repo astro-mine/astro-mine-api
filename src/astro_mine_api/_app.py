@@ -27,6 +27,7 @@ from collections.abc import Iterable
 from fastapi import FastAPI
 
 from astro_mine_api import __version__
+from astro_mine_api._cors import add_cors
 
 __all__ = [
     "SURFACES",
@@ -80,6 +81,10 @@ def build_app(surfaces: Iterable[str] | None = None) -> FastAPI:
         summary="The Astro-Mine REST tier: the Hub registry API, the Studio API, Cloud's "
         "submission edge and the Bench leaderboard, behind one deployable.",
     )
+    # The front end is a static export, so the browser calls this API from another origin
+    # (_cors.py). Installed before the routes so every surface this deployment mounts is covered
+    # by one policy rather than four.
+    add_cors(app)
 
     @app.get("/healthz", tags=["meta"])
     def healthz() -> dict[str, object]:

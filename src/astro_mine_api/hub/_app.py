@@ -39,6 +39,8 @@ from astro_mine.hub.supply_chain import SupplyChainError, admit
 from fastapi import APIRouter, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from astro_mine_api._cors import add_cors
+
 __all__ = ["PREFIX", "build_router", "create_app"]
 
 #: The component prefix every Hub route is served under.
@@ -252,5 +254,8 @@ def create_app(
     tier runs OPA (``opa_engine_from_env()``); the gate's behaviour is identical either way.
     """
     app = FastAPI(title="Astro-Mine Hub", version=__version__)
+    # The browser tier calls this API cross-origin (_cors.py). Applied here as well as in
+    # the composed app so a route test drives an app that behaves like the deployed one.
+    add_cors(app)
     app.include_router(build_router(catalog, registry=registry, audit=audit, engine=engine))
     return app

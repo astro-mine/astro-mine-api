@@ -62,6 +62,8 @@ from astro_mine.bench.telemetry import metrics_exposition, span
 from astro_mine.bench.zoo import ScenarioCatalog, WritableCatalog, default_catalog
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Response
 
+from astro_mine_api._cors import add_cors
+
 __all__ = [
     "DB_ENV",
     "OBJECTS_ENV",
@@ -434,5 +436,8 @@ def create_app(
         "provenance re-execution. Writes require an OIDC bearer token; reads are account-free.",
         openapi_tags=_OPENAPI_TAGS,
     )
+    # The browser tier calls this API cross-origin (_cors.py). Applied here as well as in
+    # the composed app so a route test drives an app that behaves like the deployed one.
+    add_cors(app)
     app.include_router(build_router(store, service=service, catalog=catalog))
     return app

@@ -92,18 +92,20 @@ def test_make_app_is_the_asgi_factory() -> None:
 
 
 def test_each_surface_answers_its_own_health_endpoint() -> None:
+    """One spelling and one shape across all four (api#4); `test_health.py` owns the details."""
     client = TestClient(build_app())
-    # Spelling differs per surface (`/health` vs `/healthz`) exactly as it does in the
-    # single-surface deployments: this port changed no route.
-    assert client.get(f"{HUB_PREFIX}/health").json()["status"] == "ok"
-    assert client.get(f"{STUDIO_PREFIX}/healthz").json() == {"status": "ok"}
-    assert client.get(f"{CLOUD_PREFIX}/healthz").json() == {"status": "ok"}
-    assert client.get(f"{BENCH_PREFIX}/healthz").json() == {"status": "ok"}
+    for prefix in (HUB_PREFIX, STUDIO_PREFIX, CLOUD_PREFIX, BENCH_PREFIX):
+        assert client.get(f"{prefix}/healthz").json()["status"] == "ok", prefix
 
 
 def test_the_deployment_health_endpoint_names_what_it_serves() -> None:
     body = TestClient(build_app(["hub", "bench"])).get("/healthz").json()
-    assert body == {"status": "ok", "version": __version__, "surfaces": ["hub", "bench"]}
+    assert body == {
+        "status": "ok",
+        "component": "api",
+        "version": __version__,
+        "surfaces": ["hub", "bench"],
+    }
 
 
 def test_surfaces_do_not_shadow_each_other() -> None:
@@ -113,7 +115,7 @@ def test_surfaces_do_not_shadow_each_other() -> None:
     # Bench's is `/jobs/{job_id}` — an unknown id is its 404, not Cloud's route answering.
     unknown = client.get(f"{BENCH_PREFIX}/jobs/nope")
     assert unknown.status_code == 404
-    assert "no job" in unknown.json()["detail"]
+    assert unknown.json()["code"] == "content_not_found"
 
 
 def test_the_openapi_document_covers_every_mounted_surface() -> None:

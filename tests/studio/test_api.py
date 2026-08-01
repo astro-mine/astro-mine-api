@@ -14,7 +14,9 @@ from astro_mine_api.studio import create_app
 
 def test_healthz() -> None:
     client = TestClient(create_app())
-    assert client.get("/studio/healthz").json() == {"status": "ok"}
+    body = client.get("/studio/healthz").json()
+    # The one shape every surface answers with (api#4); `tests/test_health.py` owns the convergence.
+    assert body["status"] == "ok" and body["component"] == "studio"
 
 
 def test_capture_intent_endpoint(lunar_draft: IntentDraft) -> None:

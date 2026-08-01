@@ -124,7 +124,7 @@ def test_authoring_a_scenario_needs_a_writable_catalog(
         headers=idp.header(roles=("maintainer",)),
     )
     assert response.status_code == 503
-    assert "read-only" in response.json()["detail"]
+    assert response.json()["code"] == "capability_unavailable"
 
 
 def test_a_maintainer_can_author_into_the_hosted_catalog(
@@ -202,7 +202,7 @@ def test_authoring_needs_a_token() -> None:
 def test_an_unknown_job_is_404(client: TestClient) -> None:
     response = client.get("/bench/jobs/no-such-job")
     assert response.status_code == 404
-    assert "no job" in response.json()["detail"]
+    assert response.json()["code"] == "content_not_found"
 
 
 def test_a_submission_without_a_provenance_bundle_is_404(client: TestClient) -> None:
@@ -213,6 +213,9 @@ def test_the_replay_manifest_of_an_unknown_submission_is_404(client: TestClient)
     """404 on the *submission*, before the replay lookup — a different arm from "no replay"."""
     response = client.get("/bench/submissions/ghost/replay/manifest")
     assert response.status_code == 404
+    assert response.json()["code"] == "content_not_found"
+    # Both arms carry that code, and *which* one answered is the subject of this test — so this
+    # reads the message to tell them apart, which is not the same as branching on it (api#4).
     assert "no submission" in response.json()["detail"]
 
 

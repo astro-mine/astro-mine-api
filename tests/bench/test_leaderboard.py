@@ -316,7 +316,9 @@ def test_rank_puts_na_last_and_breaks_ties_by_id() -> None:
 
 
 def test_healthz(store: LeaderboardStore, idp: TestIdp, scorer: SandboxScorer) -> None:
-    assert _client(store, idp, scorer).get("/bench/healthz").json() == {"status": "ok"}
+    body = _client(store, idp, scorer).get("/bench/healthz").json()
+    # The one shape every surface answers with (api#4); `tests/test_health.py` owns the convergence.
+    assert body["status"] == "ok" and body["component"] == "bench"
 
 
 def test_submit_scores_on_heldout_and_verifies(
@@ -437,7 +439,7 @@ def test_submit_rejects_a_policy_that_will_not_run(
         headers=idp.header(),
     )
     assert response.status_code == 422
-    assert "did not execute cleanly" in response.json()["detail"]
+    assert response.json()["code"] == "submission_rejected"
 
 
 def test_submit_unknown_scenario(

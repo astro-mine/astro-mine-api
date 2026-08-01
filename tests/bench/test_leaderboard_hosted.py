@@ -215,7 +215,8 @@ def test_manifest_interface_mismatch_is_rejected(
         headers=idp.header(),
     )
     assert response.status_code == 422
-    assert "not satisfy" in response.json()["detail"]
+    # An interface mismatch is a rejected submission, not a supply-chain verdict (api#4).
+    assert response.json()["code"] == "submission_rejected"
 
 
 def test_non_policy_artifact_is_rejected(registry: Registry, anchor: ScenarioSpec) -> None:

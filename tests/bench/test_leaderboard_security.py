@@ -209,7 +209,7 @@ def test_no_idp_configured_refuses_writes_rather_than_falling_open() -> None:
     open_service = LeaderboardService(authn=None, scorer=SandboxScorer(InProcessSandbox()))
     response = _client(open_service).post("/bench/submissions", json=ANCHOR_PAYLOAD)
     assert response.status_code == 503
-    assert "not configured" in response.json()["detail"]
+    assert response.json()["code"] == "capability_unavailable"
     # ...and the read paths still work with no account at all (AC5).
     assert _client(open_service).get(f"/bench/leaderboard/{ANCHOR_SCENARIO_ID}").status_code == 200
 
@@ -619,7 +619,9 @@ def test_hub_intake_rejects_an_unattested_submission_before_it_executes(
         headers=idp.header(),
     )
     assert response.status_code == 422
-    assert "supply-chain verification" in response.json()["detail"]
+    # The supply-chain verdict gets Hub's code, not the generic one: "the artifact did not verify"
+    # is the arm a submitter acts on differently from "your policy crashed" (api#4).
+    assert response.json()["code"] == "admission_rejected"
     # ...and, crucially, the policy never ran: nothing reached the sandbox.
     assert sandbox.invocations == []
     assert hosted.store.list_submissions(ANCHOR_SCENARIO_ID) == []

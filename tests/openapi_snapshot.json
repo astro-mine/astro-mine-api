@@ -756,9 +756,14 @@
         "type": "object"
       },
       "DeploymentHealth": {
-        "description": "Liveness for the deployment as a whole, naming what it mounted.",
+        "description": "Liveness for the deployment as a whole, naming what it mounted.\n\nThe surface health shape plus one field, rather than a shape of its own: a probe or a status\npage that reads ``/hub/healthz`` reads this the same way, and only has to know about\n``surfaces`` if it cares which ones this process serves.",
         "properties": {
+          "component": {
+            "title": "Component",
+            "type": "string"
+          },
           "status": {
+            "default": "ok",
             "title": "Status",
             "type": "string"
           },
@@ -775,7 +780,7 @@
           }
         },
         "required": [
-          "status",
+          "component",
           "version",
           "surfaces"
         ],
@@ -923,6 +928,29 @@
         "title": "EnvironmentStamp",
         "type": "object"
       },
+      "ErrorCode": {
+        "description": "Every error this API can answer with, named rather than inferred from a status.\n\nA status is not an identity: three different things answer 503 and four answer 404, which is\nexactly why the front end was reduced to reading messages. These are the names it branches on\ninstead, and the six the issue called out \u2014 publish unconfigured, namespace refused, admission\nrejected, resolution failed, content not found, capability unavailable \u2014 are all here.\n\n**Append-only.** A code is public API the moment a client switches on it; removing or\nrepurposing one breaks that client silently, in the arm it takes least often.",
+        "enum": [
+          "publish_unconfigured",
+          "namespace_refused",
+          "admission_rejected",
+          "resolution_failed",
+          "content_not_found",
+          "capability_unavailable",
+          "download_denied",
+          "validation_failed",
+          "invalid_request",
+          "not_authenticated",
+          "not_authorized",
+          "rate_limited",
+          "submission_rejected",
+          "conflict",
+          "method_not_allowed",
+          "internal_error"
+        ],
+        "title": "ErrorCode",
+        "type": "string"
+      },
       "EvaluatedCandidate": {
         "additionalProperties": false,
         "description": "A candidate that has been fanned through the design loop and scored, with the\nprovenance needed to reproduce it (studio.md \u00a76).",
@@ -981,6 +1009,30 @@
         "title": "EvaluationWindow",
         "type": "object"
       },
+      "FieldProblem": {
+        "description": "One field-level failure inside a :class:`Problem` \u2014 structured, so nobody parses prose.",
+        "properties": {
+          "field": {
+            "title": "Field",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "message",
+          "type"
+        ],
+        "title": "FieldProblem",
+        "type": "object"
+      },
       "GeoRegion": {
         "additionalProperties": false,
         "description": "A body/region an objective is stated against, carrying an **explicit planetary\nCRS** (conventions.md \u00a75) \u2014 no implicit Earth/WGS84 assumption. ``crs`` is the Core\n``PlanetaryCRS`` type; the deterministic-forms path rejects a missing/invalid CRS\nat the boundary (see ``intent.forms``).",
@@ -998,19 +1050,6 @@
           "crs"
         ],
         "title": "GeoRegion",
-        "type": "object"
-      },
-      "HTTPValidationError": {
-        "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "title": "Detail",
-            "type": "array"
-          }
-        },
-        "title": "HTTPValidationError",
         "type": "object"
       },
       "HardConstraint": {
@@ -1045,6 +1084,30 @@
           "threshold"
         ],
         "title": "HardConstraint",
+        "type": "object"
+      },
+      "Health": {
+        "description": "Liveness for one surface. The same three fields from every surface, always.",
+        "properties": {
+          "component": {
+            "title": "Component",
+            "type": "string"
+          },
+          "status": {
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "component",
+          "version"
+        ],
+        "title": "Health",
         "type": "object"
       },
       "HubSubmissionRequest": {
@@ -1879,6 +1942,41 @@
           "reference_radius_m"
         ],
         "title": "PlanetaryCRS",
+        "type": "object"
+      },
+      "Problem": {
+        "description": "The one error document every surface answers with (RFC 9457; api.md \u00a74).\n\n``code`` identifies the failure and is the only member a client should switch on. ``detail`` is\nthe message a person reads \u2014 **one string, always**, which is what lets a 422 render as words\nwith no client-side flattening of an array.",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/FieldProblem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "title",
+          "status",
+          "detail"
+        ],
+        "title": "Problem",
         "type": "object"
       },
       "Provenance": {
@@ -3057,46 +3155,6 @@
         "title": "TradeStudy",
         "type": "object"
       },
-      "ValidationError": {
-        "properties": {
-          "ctx": {
-            "title": "Context",
-            "type": "object"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "loc": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                }
-              ]
-            },
-            "title": "Location",
-            "type": "array"
-          },
-          "msg": {
-            "title": "Message",
-            "type": "string"
-          },
-          "type": {
-            "title": "Error Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
-        "title": "ValidationError",
-        "type": "object"
-      },
       "ViewLeaderboard": {
         "additionalProperties": false,
         "description": "A scenario's leaderboard as View consumes it: the primary metric + full-metric rows.",
@@ -3654,13 +3712,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Audit Trail",
@@ -3677,15 +3745,31 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Bench Healthz",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Health"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Healthz",
@@ -3721,13 +3805,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Get Job",
@@ -3767,13 +3861,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Leaderboard",
@@ -3810,13 +3914,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Scorecards",
@@ -3839,6 +3953,26 @@
               }
             },
             "description": "Prometheus exposition format."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Prometheus Metrics",
@@ -3865,6 +3999,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "List Scenarios",
@@ -3922,13 +4076,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Author Scenario",
@@ -3982,13 +4146,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Submit",
@@ -4042,13 +4216,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Submit Hub",
@@ -4101,13 +4285,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Retract Submission",
@@ -4141,13 +4335,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Get Submission",
@@ -4183,13 +4387,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Get Provenance",
@@ -4227,13 +4441,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Get Replay",
@@ -4270,13 +4494,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Get Replay Manifest",
@@ -4305,6 +4539,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Backends"
@@ -4318,15 +4572,31 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Cloud Healthz",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Health"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Healthz"
@@ -4371,13 +4641,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Submit Job"
@@ -4440,13 +4720,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Compile Job"
@@ -4493,13 +4783,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Compile Sweep Endpoint"
@@ -4532,13 +4832,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Expand Sweep"
@@ -4585,13 +4895,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Compile Workflow Endpoint"
@@ -4599,7 +4919,7 @@
     },
     "/healthz": {
       "get": {
-        "description": "Liveness for the deployment as a whole, naming what it serves.\n\nEach surface keeps its own health endpoint under its own prefix \u2014 this one answers \"is\nthis process up, and which surfaces did it mount?\", which is the question a load balancer\nin front of a multi-surface deployment actually asks.",
+        "description": "Liveness for the deployment as a whole, naming what it serves.\n\nEach surface answers ``/healthz`` under its own prefix \u2014 this one answers \"is this process\nup, and which surfaces did it mount?\", which is the question a load balancer in front of a\nmulti-surface deployment actually asks.",
         "operationId": "healthz",
         "responses": {
           "200": {
@@ -4611,6 +4931,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Healthz",
@@ -4655,13 +4995,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Artifact"
@@ -4713,13 +5063,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Download"
@@ -4727,24 +5087,94 @@
     },
     "/hub/health": {
       "get": {
+        "deprecated": true,
+        "description": "The pre-convergence spelling, answering the same body as ``/hub/healthz``.\n\nHub was the one surface spelling this ``/health``; ``api.md`` \u00a74 said the spelling\nconverges during the move, and it has. This stays for one cycle so nothing that probes it\nbreaks on the deploy that converges it, and says so in the document and in its headers.",
         "operationId": "hub_health",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Hub Health",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "description": "Successful Response",
+            "headers": {
+              "Deprecation": {
+                "description": "Always `true`. This endpoint is deprecated.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Link": {
+                "description": "The successor: `</hub/healthz>; rel=\"successor-version\"`.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
+          }
+        },
+        "summary": "Deprecated alias for /hub/healthz."
+      }
+    },
+    "/hub/healthz": {
+      "get": {
+        "operationId": "hub_healthz",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
-        "summary": "Health"
+        "summary": "Healthz"
       }
     },
     "/hub/publish": {
@@ -4774,13 +5204,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Publish"
@@ -4812,13 +5252,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Do Resolve"
@@ -4952,13 +5402,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Do Search"
@@ -4991,13 +5451,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Publish Campaign"
@@ -5031,13 +5501,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Pull Campaign"
@@ -5079,13 +5559,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "List Catalog"
@@ -5119,13 +5609,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Preview Asset"
@@ -5149,6 +5649,26 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "List Worlds"
@@ -5162,15 +5682,31 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Studio Healthz",
-                  "type": "object"
+                  "$ref": "#/components/schemas/Health"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Healthz"
@@ -5202,13 +5738,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Capture"
@@ -5240,13 +5786,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Run Study"
@@ -5279,13 +5835,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Comparison"
@@ -5319,13 +5885,23 @@
           },
           "422": {
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "The request did not validate; `errors` carries the field-level detail."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem document. Branch on `code`."
           }
         },
         "summary": "Resolve World"

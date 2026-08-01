@@ -55,14 +55,19 @@ from astro_mine.bench.leaderboard._models import (
 from astro_mine.bench.leaderboard._provenance import ProvenanceBundle
 from astro_mine.bench.leaderboard._service import LeaderboardService, SubmissionRejected
 from astro_mine.bench.leaderboard._store import InMemoryStore, LeaderboardStore
-from astro_mine.bench.leaderboard._supply_chain import attestation_policy_from_env
+from astro_mine.bench.leaderboard._supply_chain import (
+    SupplyChainRejected,
+    attestation_policy_from_env,
+)
 from astro_mine.bench.report import ViewLeaderboard, ViewReplay, export_leaderboard, replay_manifest
 from astro_mine.bench.sandbox import SandboxLimits, SandboxScorer, SubprocessSandbox
 from astro_mine.bench.telemetry import metrics_exposition, span
 from astro_mine.bench.zoo import ScenarioCatalog, WritableCatalog, default_catalog
-from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Response
+from fastapi import APIRouter, Depends, FastAPI, Header, Response
 
 from astro_mine_api._cors import add_cors
+from astro_mine_api._errors import ERROR_RESPONSES, ApiError, ErrorCode, add_error_handlers
+from astro_mine_api._health import Health, health
 from astro_mine_api._ids import unique_operation_id
 
 __all__ = [
@@ -122,6 +127,37 @@ _OPENAPI_TAGS = [
     {"name": "admin", "description": "Privileged board administration and the audit trail."},
     {"name": "meta", "description": "Service liveness and Prometheus metrics."},
 ]
+
+
+#: What a :class:`SubmissionRejected` becomes. The platform's audited refusal carries an HTTP status
+#: and no code — deliberately, since it is library-side and knows nothing about HTTP beyond the
+#: number the edge should use — so the mapping lives here, at the edge that owns the error contract.
+_REJECTION_CODES: dict[int, ErrorCode] = {
+    400: ErrorCode.INVALID_REQUEST,
+    401: ErrorCode.NOT_AUTHENTICATED,
+    403: ErrorCode.NOT_AUTHORIZED,
+    404: ErrorCode.CONTENT_NOT_FOUND,
+    422: ErrorCode.SUBMISSION_REJECTED,
+    429: ErrorCode.RATE_LIMITED,
+    503: ErrorCode.CAPABILITY_UNAVAILABLE,
+}
+
+
+def _rejected(exc: SubmissionRejected) -> ApiError:
+    """The problem document an audited refusal leaves as.
+
+    422 covers four different things on this surface — an artifact that did not verify, a manifest
+    whose interfaces do not satisfy the scenario's, an entrypoint that could not be read, and a
+    policy that did not execute cleanly under its sandbox. Only the first is a supply-chain verdict,
+    and it is the one a submitter acts on differently from the rest, so it gets
+    ``admission_rejected`` — the same code Hub's publish boundary answers with, for the same reason.
+    The cause is the only place that distinction survives; the rest map by status.
+    """
+    code = _REJECTION_CODES.get(exc.status, ErrorCode.SUBMISSION_REJECTED)
+    if isinstance(exc.__cause__, SupplyChainRejected):
+        code = ErrorCode.ADMISSION_REJECTED
+    headers = {"WWW-Authenticate": "Bearer"} if exc.status == 401 else None
+    return ApiError(code, str(exc), status_code=exc.status, headers=headers)
 
 
 def _default_store() -> LeaderboardStore:
@@ -188,7 +224,7 @@ def build_router(
     zoo: ScenarioCatalog = catalog if catalog is not None else default_catalog()
     bound = service
 
-    router = APIRouter(prefix=PREFIX)
+    router = APIRouter(prefix=PREFIX, responses=ERROR_RESPONSES)
 
     def authenticated(
         authorization: Annotated[str | None, Header()] = None,
@@ -197,8 +233,7 @@ def build_router(
         try:
             return bound.authenticate(authorization)
         except SubmissionRejected as exc:
-            headers = {"WWW-Authenticate": "Bearer"} if exc.status == 401 else None
-            raise HTTPException(status_code=exc.status, detail=str(exc), headers=headers) from exc
+            raise _rejected(exc) from exc
 
     # NOTE: the `principal: Principal = Depends(authenticated)` default-value form, not
     # `Annotated[Principal, Depends(...)]`. Under `from __future__ import annotations` FastAPI
@@ -209,8 +244,8 @@ def build_router(
     # --- meta (account-free) ---------------------------------------------------------------------
 
     @router.get("/healthz", tags=["meta"])
-    def healthz() -> dict[str, str]:
-        return {"status": "ok"}
+    def healthz() -> Health:
+        return health("bench")
 
     @router.get(
         "/metrics",
@@ -246,11 +281,11 @@ def build_router(
         try:
             spec = zoo.load_scenario(request.scenario_id)
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+            raise ApiError(ErrorCode.CONTENT_NOT_FOUND, str(exc)) from exc
         try:
             return bound.submit_local(spec, request, principal)
         except SubmissionRejected as exc:
-            raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+            raise _rejected(exc) from exc
 
     @router.post("/submissions/hub", response_model=BenchJobRecord, tags=["submissions"])
     def submit_hub(
@@ -258,23 +293,24 @@ def build_router(
     ) -> _PlatformJobRecord:
         """Submit a community artifact by Hub digest; verified (cosign/SLSA/SBOM) then sandboxed."""
         if bound.registry is None:
-            raise HTTPException(
-                status_code=503, detail="Hub-digest intake is not configured on this deployment"
+            raise ApiError(
+                ErrorCode.CAPABILITY_UNAVAILABLE,
+                "Hub-digest intake is not configured on this deployment",
             )
         try:
             spec = zoo.load_scenario(request.scenario_id)
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+            raise ApiError(ErrorCode.CONTENT_NOT_FOUND, str(exc)) from exc
         try:
             return bound.submit_hub(spec, request, principal)
         except SubmissionRejected as exc:
-            raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+            raise _rejected(exc) from exc
 
     @router.get("/submissions/{submission_id}", response_model=Submission, tags=["submissions"])
     def get_submission(submission_id: str) -> Submission:
         submission = backend.get_submission(submission_id)
         if submission is None:
-            raise HTTPException(status_code=404, detail=f"no submission {submission_id!r}")
+            raise ApiError(ErrorCode.CONTENT_NOT_FOUND, f"no submission {submission_id!r}")
         return submission
 
     @router.delete("/submissions/{submission_id}", response_model=Submission, tags=["admin"])
@@ -285,9 +321,9 @@ def build_router(
         try:
             return bound.retract(submission_id, principal)
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+            raise ApiError(ErrorCode.CONTENT_NOT_FOUND, str(exc)) from exc
         except SubmissionRejected as exc:
-            raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+            raise _rejected(exc) from exc
 
     # --- scenarios (authoring is authenticated; listing is not) -----------------------------------
 
@@ -309,19 +345,19 @@ def build_router(
         from astro_mine.bench.scenario import ScenarioSpec
 
         if not isinstance(zoo, WritableCatalog):
-            raise HTTPException(
-                status_code=503,
-                detail="this deployment's zoo catalog is read-only; configure "
+            raise ApiError(
+                ErrorCode.CAPABILITY_UNAVAILABLE,
+                "this deployment's zoo catalog is read-only; configure "
                 "ASTRO_MINE_BENCH_CATALOG_DSN to author scenarios",
             )
         try:
             parsed = ScenarioSpec.model_validate(spec)
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+            raise ApiError(ErrorCode.VALIDATION_FAILED, str(exc)) from exc
         try:
             bound.authorize(principal, Action.SCENARIO_AUTHOR, parsed.scenario_id)
         except SubmissionRejected as exc:
-            raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+            raise _rejected(exc) from exc
         with span("bench.scenario.author", **{"bench.scenario_id": parsed.scenario_id}):
             zoo.upsert(parsed)
         bound.audit.record(
@@ -346,8 +382,8 @@ def build_router(
     def get_provenance(submission_id: str) -> ProvenanceBundle:
         bundle = bound.get_provenance(submission_id)
         if bundle is None:
-            raise HTTPException(
-                status_code=404, detail=f"no provenance bundle for {submission_id!r}"
+            raise ApiError(
+                ErrorCode.CONTENT_NOT_FOUND, f"no provenance bundle for {submission_id!r}"
             )
         return bundle
 
@@ -355,7 +391,7 @@ def build_router(
     def get_job(job_id: str) -> _PlatformJobRecord:
         job = bound.get_job(job_id)
         if job is None:
-            raise HTTPException(status_code=404, detail=f"no job {job_id!r}")
+            raise ApiError(ErrorCode.CONTENT_NOT_FOUND, f"no job {job_id!r}")
         return job
 
     @router.get(
@@ -403,7 +439,7 @@ def build_router(
         """
         mcap = bound.get_replay(submission_id)
         if mcap is None:
-            raise HTTPException(status_code=404, detail=f"no replay for {submission_id!r}")
+            raise ApiError(ErrorCode.CONTENT_NOT_FOUND, f"no replay for {submission_id!r}")
         return Response(
             content=mcap,
             media_type="application/octet-stream",
@@ -419,10 +455,10 @@ def build_router(
         """The decoded replay manifest (frames, agents, sim-time span); 404 if no replay."""
         submission = backend.get_submission(submission_id)
         if submission is None:
-            raise HTTPException(status_code=404, detail=f"no submission {submission_id!r}")
+            raise ApiError(ErrorCode.CONTENT_NOT_FOUND, f"no submission {submission_id!r}")
         mcap = bound.get_replay(submission_id)
         if mcap is None:
-            raise HTTPException(status_code=404, detail=f"no replay for {submission_id!r}")
+            raise ApiError(ErrorCode.CONTENT_NOT_FOUND, f"no replay for {submission_id!r}")
         return replay_manifest(
             mcap, scenario_id=submission.scenario_id, submission_id=submission_id
         )
@@ -447,7 +483,7 @@ def build_router(
         try:
             bound.authorize(principal, Action.AUDIT_READ, "audit")
         except SubmissionRejected as exc:
-            raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+            raise _rejected(exc) from exc
         return bound.audit.query(
             subject=subject,
             action=action,
@@ -483,8 +519,10 @@ def create_app(
         openapi_tags=_OPENAPI_TAGS,
         generate_unique_id_function=unique_operation_id,
     )
-    # The browser tier calls this API cross-origin (_cors.py). Applied here as well as in
-    # the composed app so a route test drives an app that behaves like the deployed one.
+    # The browser tier calls this API cross-origin (_cors.py), and every refusal leaves as a problem
+    # document (_errors.py). Applied here as well as in the composed app so a route test drives an
+    # app that behaves — and fails — like the deployed one.
     add_cors(app)
+    add_error_handlers(app)
     app.include_router(build_router(store, service=service, catalog=catalog))
     return app

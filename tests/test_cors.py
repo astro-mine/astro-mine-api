@@ -122,8 +122,13 @@ def test_the_preflight_for_creating_a_study_is_answered() -> None:
 def test_the_preflight_for_retracting_a_submission_is_answered() -> None:
     """``DELETE /bench/submissions/{id}`` is a steward action, and preflights like any other.
 
-    The route behind it requires an OIDC bearer token — and the preflight still succeeds, because a
-    browser never sends credentials on one. A preflight that demanded auth would be unanswerable.
+    The preflight itself carries no token — a browser never sends credentials on one — so it is
+    answerable without auth, and a preflight that demanded auth would be unanswerable.
+
+    That is only half of what the route needs, and reading it as the whole is what api#8 fixed: the
+    preflight must also **declare** that ``authorization`` may be sent, or the browser answers the
+    question "may I send this?" with no, and the real request never leaves. See
+    :func:`test_every_route_that_takes_a_bearer_token_permits_it_at_the_preflight`.
     """
     response = TestClient(build_app()).options(
         "/bench/submissions/any-id",
@@ -136,6 +141,87 @@ def test_the_preflight_for_retracting_a_submission_is_answered() -> None:
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == ALLOWED
     assert "DELETE" in response.headers["access-control-allow-methods"]
+
+
+# --- the bearer token can arrive (api#8) --------------------------------------------------------
+
+
+def _routes_taking_a_bearer_token() -> list[tuple[str, str]]:
+    """Every ``(method, path)`` whose operation declares an ``authorization`` header parameter.
+
+    Read off the OpenAPI document rather than listed by hand, for the reason api.md §7 gives for
+    the error and health contracts: a test that walks the routes keeps covering them, and a test
+    that names five keeps covering five. An authenticated route added later is included here the
+    day it is added, with nobody remembering to do it.
+    """
+    document = build_app().openapi()
+    found: list[tuple[str, str]] = []
+    for path, operations in document["paths"].items():
+        for method, operation in operations.items():
+            if method.upper() not in {"GET", "POST", "PUT", "PATCH", "DELETE"}:
+                continue
+            parameters = operation.get("parameters", [])
+            if any(p.get("in") == "header" and p["name"] == "authorization" for p in parameters):
+                found.append((method.upper(), path))
+    return sorted(found)
+
+
+def test_some_route_takes_a_bearer_token() -> None:
+    """Guards the walk above against becoming a test of nothing.
+
+    If the document stopped declaring the header — a refactor that dropped the parameter, say —
+    the parametrised test below would collapse to zero cases and pass in silence, which is the
+    failure mode of every test that iterates a discovered set.
+    """
+    assert _routes_taking_a_bearer_token()
+
+
+@pytest.mark.usefixtures("allowlisted")
+@pytest.mark.parametrize(("method", "path"), _routes_taking_a_bearer_token())
+def test_every_route_that_takes_a_bearer_token_permits_it_at_the_preflight(
+    method: str, path: str
+) -> None:
+    """The preflight must name ``authorization``, or the request it guards is never sent.
+
+    Starlette checks each requested header against the allowlist and fails the whole preflight on
+    the first miss — a 400 ``Disallowed CORS headers``, before any route is reached. With
+    ``content-type`` alone allowed, Bench's entire write path and the steward's audit view were
+    unreachable from a browser while every test here stayed green, because every one of them asked
+    for ``content-type`` and nothing else (api#8).
+    """
+    response = TestClient(build_app()).options(
+        path.replace("{submission_id}", "any-id"),
+        headers={
+            "Origin": ALLOWED,
+            "Access-Control-Request-Method": method,
+            "Access-Control-Request-Headers": "authorization, content-type",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.headers["access-control-allow-origin"] == ALLOWED
+    assert method in response.headers["access-control-allow-methods"]
+    assert "authorization" in response.headers["access-control-allow-headers"].lower()
+
+
+@pytest.mark.usefixtures("allowlisted")
+def test_permitting_the_token_did_not_permit_credentials() -> None:
+    """The two are different mechanisms, and this is the assertion that keeps them apart.
+
+    An ``Authorization`` header a page sets explicitly is an ordinary request header. CORS
+    *credentials* are cookies and auth state the browser attaches by itself, and allowing those is
+    the plausible-looking wrong fix for api#8 — it would not have been needed, and it would have
+    turned a wildcard allowlist into a genuine hazard.
+    """
+    response = TestClient(build_app()).options(
+        "/bench/submissions",
+        headers={
+            "Origin": ALLOWED,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization, content-type",
+        },
+    )
+    assert "authorization" in response.headers["access-control-allow-headers"].lower()
+    assert "access-control-allow-credentials" not in response.headers
 
 
 @pytest.mark.usefixtures("allowlisted")

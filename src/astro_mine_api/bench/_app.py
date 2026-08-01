@@ -45,7 +45,7 @@ from astro_mine.bench.leaderboard._auth import Principal, oidc_verifier_from_env
 from astro_mine.bench.leaderboard._authz import Action, policy_engine_from_env
 from astro_mine.bench.leaderboard._eval import rank
 from astro_mine.bench.leaderboard._hub import open_registry
-from astro_mine.bench.leaderboard._jobs import JobRecord
+from astro_mine.bench.leaderboard._jobs import JobRecord as _PlatformJobRecord
 from astro_mine.bench.leaderboard._models import (
     HubSubmissionRequest,
     LeaderboardEntry,
@@ -63,6 +63,7 @@ from astro_mine.bench.zoo import ScenarioCatalog, WritableCatalog, default_catal
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Response
 
 from astro_mine_api._cors import add_cors
+from astro_mine_api._ids import unique_operation_id
 
 __all__ = [
     "DB_ENV",
@@ -79,6 +80,23 @@ __all__ = [
 
 #: The component prefix every Bench route is served under.
 PREFIX = "/bench"
+
+
+class BenchJobRecord(_PlatformJobRecord):
+    """Bench's evaluation job record, named for the document rather than for the module.
+
+    Bench and Studio each own a ``JobRecord``, and they are genuinely different things — one tracks
+    an evaluation, the other a design study. Mounted in one process they collide in the OpenAPI
+    document, and FastAPI disambiguates by prefixing the module path, which produces
+    ``astro_mine__bench__leaderboard___jobs__JobRecord`` and a generated client method returning a
+    type nobody can type.
+
+    The collision is an artifact of *composition* — it exists only because this distribution serves
+    both surfaces from one document — so it is resolved here rather than by renaming a platform type
+    that is unambiguous on its own. This subclass adds nothing: every field is inherited, so the
+    document and the platform model cannot drift.
+    """
+
 
 #: Env var selecting the durable submission store URL; unset falls back to the in-memory backend.
 DB_ENV = "ASTRO_MINE_BENCH_DB"
@@ -194,7 +212,19 @@ def build_router(
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
-    @router.get("/metrics", tags=["meta"])
+    @router.get(
+        "/metrics",
+        tags=["meta"],
+        # Prometheus text exposition, not JSON — declared so the document says so rather than
+        # leaving a client to guess from an empty schema.
+        response_class=Response,
+        responses={
+            200: {
+                "content": {"text/plain": {"schema": {"type": "string"}}},
+                "description": "Prometheus exposition format.",
+            }
+        },
+    )
     def prometheus_metrics() -> Response:
         """Prometheus exposition for the submission pipeline (bench.md §10; bench#32).
 
@@ -222,10 +252,10 @@ def build_router(
         except SubmissionRejected as exc:
             raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
 
-    @router.post("/submissions/hub", response_model=JobRecord, tags=["submissions"])
+    @router.post("/submissions/hub", response_model=BenchJobRecord, tags=["submissions"])
     def submit_hub(
         request: HubSubmissionRequest, principal: Principal = Depends(authenticated)
-    ) -> JobRecord:
+    ) -> _PlatformJobRecord:
         """Submit a community artifact by Hub digest; verified (cosign/SLSA/SBOM) then sandboxed."""
         if bound.registry is None:
             raise HTTPException(
@@ -321,8 +351,8 @@ def build_router(
             )
         return bundle
 
-    @router.get("/jobs/{job_id}", response_model=JobRecord, tags=["jobs"])
-    def get_job(job_id: str) -> JobRecord:
+    @router.get("/jobs/{job_id}", response_model=BenchJobRecord, tags=["jobs"])
+    def get_job(job_id: str) -> _PlatformJobRecord:
         job = bound.get_job(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail=f"no job {job_id!r}")
@@ -338,6 +368,7 @@ def build_router(
         "/leaderboard/{scenario_id}/scorecards",
         response_model=ViewLeaderboard,
         tags=["leaderboard"],
+        operation_id="bench_leaderboard_scorecards",
     )
     def scorecards(scenario_id: str) -> ViewLeaderboard:
         """The full per-metric leaderboard dataset View renders (bench.md §6; RM-P1-BENCH-12).
@@ -348,7 +379,22 @@ def build_router(
         """
         return export_leaderboard(scenario_id, backend.list_submissions(scenario_id))
 
-    @router.get("/submissions/{submission_id}/replay", tags=["leaderboard"])
+    @router.get(
+        "/submissions/{submission_id}/replay",
+        tags=["leaderboard"],
+        # A binary download, not JSON. Without this the document advertises an empty schema and a
+        # generated client types the result as `unknown` instead of a blob — the same defect as an
+        # untyped object, wearing a different disguise.
+        response_class=Response,
+        responses={
+            200: {
+                "content": {
+                    "application/octet-stream": {"schema": {"type": "string", "format": "binary"}}
+                },
+                "description": "The MCAP episode log.",
+            }
+        },
+    )
     def get_replay(submission_id: str) -> Response:
         """The MCAP episode replay bytes View plays (``application/octet-stream``), 404 if none.
 
@@ -435,6 +481,7 @@ def create_app(
         summary="Public leaderboard: submit-policy-we-run + Hub-digest intake, held-out seeds, "
         "provenance re-execution. Writes require an OIDC bearer token; reads are account-free.",
         openapi_tags=_OPENAPI_TAGS,
+        generate_unique_id_function=unique_operation_id,
     )
     # The browser tier calls this API cross-origin (_cors.py). Applied here as well as in
     # the composed app so a route test drives an app that behaves like the deployed one.

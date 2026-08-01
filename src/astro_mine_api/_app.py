@@ -25,9 +25,11 @@ import os
 from collections.abc import Iterable
 
 from fastapi import FastAPI
+from pydantic import BaseModel
 
 from astro_mine_api import __version__
 from astro_mine_api._cors import add_cors
+from astro_mine_api._ids import unique_operation_id
 
 __all__ = [
     "SURFACES",
@@ -43,6 +45,14 @@ SURFACES_ENV = "ASTRO_MINE_API_SURFACES"
 
 #: Every surface this distribution can serve, in the order they mount.
 SURFACES: tuple[str, ...] = ("hub", "studio", "cloud", "bench")
+
+
+class DeploymentHealth(BaseModel):
+    """Liveness for the deployment as a whole, naming what it mounted."""
+
+    status: str
+    version: str
+    surfaces: list[str]
 
 
 def enabled_surfaces(names: Iterable[str] | None = None) -> tuple[str, ...]:
@@ -80,6 +90,7 @@ def build_app(surfaces: Iterable[str] | None = None) -> FastAPI:
         version=__version__,
         summary="The Astro-Mine REST tier: the Hub registry API, the Studio API, Cloud's "
         "submission edge and the Bench leaderboard, behind one deployable.",
+        generate_unique_id_function=unique_operation_id,
     )
     # The front end is a static export, so the browser calls this API from another origin
     # (_cors.py). Installed before the routes so every surface this deployment mounts is covered
@@ -87,14 +98,14 @@ def build_app(surfaces: Iterable[str] | None = None) -> FastAPI:
     add_cors(app)
 
     @app.get("/healthz", tags=["meta"])
-    def healthz() -> dict[str, object]:
+    def healthz() -> DeploymentHealth:
         """Liveness for the deployment as a whole, naming what it serves.
 
         Each surface keeps its own health endpoint under its own prefix — this one answers "is
         this process up, and which surfaces did it mount?", which is the question a load balancer
         in front of a multi-surface deployment actually asks.
         """
-        return {"status": "ok", "version": __version__, "surfaces": list(names)}
+        return DeploymentHealth(status="ok", version=__version__, surfaces=list(names))
 
     for name in names:
         _mount(app, name)

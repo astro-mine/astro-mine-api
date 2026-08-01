@@ -40,6 +40,7 @@ from fastapi import APIRouter, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from astro_mine_api._cors import add_cors
+from astro_mine_api._ids import unique_operation_id
 
 __all__ = ["PREFIX", "build_router", "create_app"]
 
@@ -73,34 +74,96 @@ class DownloadBody(BaseModel):
     require_verified: bool = False
 
 
-def _hit(entry: CatalogEntry, score: float) -> dict[str, Any]:
-    return {
-        "reference": entry.reference,
-        "digest": entry.digest,
-        "name": entry.name,
-        "version": entry.version,
-        "kind": entry.kind,
-        "artifact_kind": entry.artifact_kind,
-        "license": entry.license,
-        "namespace": entry.namespace,
-        "publisher": entry.publisher,
-        "deprecated": entry.deprecated,
-        "yanked": entry.yanked,
-        "score": score,
-    }
+class SearchHit(BaseModel):
+    """One catalog entry as the API projects it — the shape ``_hit`` builds.
+
+    This is a *projection* of :class:`~astro_mine.hub.index.CatalogEntry`, not a copy of it: the
+    route already chose these twelve fields, and declaring them makes the choice legible to a
+    generated client instead of leaving it as an untyped object the client types as ``unknown``.
+    The catalog record itself is not here — it is large, and only the detail route returns it.
+    """
+
+    reference: str
+    digest: str
+    name: str
+    version: str
+    kind: str | None = None
+    #: Hub's *container* kind, a separate facet from Core's interface ``kind`` and nullable for an
+    #: artifact published by another tool or indexed before the facet existed (hub.md §2).
+    artifact_kind: str | None = None
+    license: str | None = None
+    namespace: str | None = None
+    publisher: str | None = None
+    deprecated: bool = False
+    yanked: bool = False
+    #: Relevance for a search result; ``1.0`` where the entry was fetched rather than ranked.
+    score: float
 
 
-def _detail(entry: CatalogEntry, registry: RegistryClient | None) -> dict[str, Any]:
-    detail = _hit(entry, 1.0)
-    detail["record"] = entry.record.model_dump(mode="json")
-    detail["attestations"] = (
-        sorted(
-            {desc.artifact_type for desc in registry.referrers(entry.digest) if desc.artifact_type}
-        )
-        if registry is not None
-        else []
+class ArtifactDetail(SearchHit):
+    """A single artifact: its projection, its full catalog record, and what is attested.
+
+    ``attestations`` names the attestation *types present in the registry* — it is emphatically not
+    a verification verdict, and the front end is required to say so in those words (ui.md §7).
+    Empty when the deployment has no registry to ask.
+    """
+
+    record: dict[str, Any]
+    attestations: list[str] = Field(default_factory=list)
+
+
+class ResolveResult(BaseModel):
+    """The one immutable artifact a name and version spec resolve to."""
+
+    reference: str
+    digest: str
+    version: str
+
+
+class DownloadGrant(BaseModel):
+    """Permission to materialize an artifact, with the policy that granted it.
+
+    The policy version travels with the grant so a consumer can record which rules let it in.
+    """
+
+    digest: str
+    policy_version: str
+    policy_engine: str
+
+
+def _hit(entry: CatalogEntry, score: float) -> SearchHit:
+    return SearchHit(
+        reference=entry.reference,
+        digest=entry.digest,
+        name=entry.name,
+        version=entry.version,
+        kind=entry.kind,
+        artifact_kind=entry.artifact_kind,
+        license=entry.license,
+        namespace=entry.namespace,
+        publisher=entry.publisher,
+        deprecated=entry.deprecated,
+        yanked=entry.yanked,
+        score=score,
     )
-    return detail
+
+
+def _detail(entry: CatalogEntry, registry: RegistryClient | None) -> ArtifactDetail:
+    return ArtifactDetail(
+        **_hit(entry, 1.0).model_dump(),
+        record=entry.record.model_dump(mode="json"),
+        attestations=(
+            sorted(
+                {
+                    desc.artifact_type
+                    for desc in registry.referrers(entry.digest)
+                    if desc.artifact_type
+                }
+            )
+            if registry is not None
+            else []
+        ),
+    )
 
 
 def build_router(
@@ -123,7 +186,7 @@ def build_router(
         return {"status": "ok", "version": __version__}
 
     @router.post("/publish")
-    def publish(body: PublishBody) -> dict[str, Any]:
+    def publish(body: PublishBody) -> SearchHit:
         """Index an already-stored artifact — after proving the caller's claims about it.
 
         Every field in the body is a *claim*: the digest, the manifest, and the namespace. This
@@ -165,7 +228,7 @@ def build_router(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return _hit(entry, 1.0)
 
-    @router.get("/search")
+    @router.get("/search", operation_id="hub_search")
     def do_search(
         text: str | None = None,
         semantic: str | None = None,
@@ -174,7 +237,7 @@ def build_router(
         license: str | None = None,
         namespace: str | None = None,
         limit: int = 20,
-    ) -> list[dict[str, Any]]:
+    ) -> list[SearchHit]:
         query = SearchQuery(
             text=text,
             semantic=semantic,
@@ -186,15 +249,15 @@ def build_router(
         )
         return [_hit(result.entry, result.score) for result in search(catalog, query)]
 
-    @router.get("/artifacts/{name}/{version}")
-    def artifact(name: str, version: str) -> dict[str, Any]:
+    @router.get("/artifacts/{name}/{version}", operation_id="hub_get_artifact")
+    def artifact(name: str, version: str) -> ArtifactDetail:
         entry = catalog.get(f"{name}:{version}")
         if entry is None:
             raise HTTPException(status_code=404, detail="artifact not found")
         return _detail(entry, registry)
 
-    @router.post("/resolve")
-    def do_resolve(body: ResolveBody) -> dict[str, str]:
+    @router.post("/resolve", operation_id="hub_resolve")
+    def do_resolve(body: ResolveBody) -> ResolveResult:
         request = ResolutionRequest(
             name=body.name,
             version_spec=body.version_spec,
@@ -206,14 +269,14 @@ def build_router(
         except ResolutionError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         primary = resolution.primary
-        return {
-            "reference": primary.reference,
-            "digest": primary.digest,
-            "version": primary.version,
-        }
+        return ResolveResult(
+            reference=primary.reference,
+            digest=primary.digest,
+            version=primary.version,
+        )
 
     @router.post("/artifacts/{name}/{version}/download")
-    def download(name: str, version: str, body: DownloadBody) -> dict[str, str]:
+    def download(name: str, version: str, body: DownloadBody) -> DownloadGrant:
         entry = catalog.get(f"{name}:{version}")
         if entry is None:
             raise HTTPException(status_code=404, detail="artifact not found")
@@ -231,11 +294,11 @@ def build_router(
         except GatedDownload as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         # The policy version travels with the grant: a consumer can record which rules let it in.
-        return {
-            "digest": entry.digest,
-            "policy_version": decision.policy_version,
-            "policy_engine": decision.engine,
-        }
+        return DownloadGrant(
+            digest=entry.digest,
+            policy_version=decision.policy_version,
+            policy_engine=decision.engine,
+        )
 
     return router
 
@@ -253,7 +316,11 @@ def create_app(
     :class:`~astro_mine.hub.policy.OpaPolicyEngine` over the versioned Rego bundle when the hosted
     tier runs OPA (``opa_engine_from_env()``); the gate's behaviour is identical either way.
     """
-    app = FastAPI(title="Astro-Mine Hub", version=__version__)
+    app = FastAPI(
+        title="Astro-Mine Hub",
+        version=__version__,
+        generate_unique_id_function=unique_operation_id,
+    )
     # The browser tier calls this API cross-origin (_cors.py). Applied here as well as in
     # the composed app so a route test drives an app that behaves like the deployed one.
     add_cors(app)

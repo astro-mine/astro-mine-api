@@ -38,13 +38,26 @@ from astro_mine.cloud.submission.workflowspec import WorkflowSpec
 # import this port had to re-point rather than merely re-prefix.
 from astro_mine.core.artifacts import ArtifactStore
 from fastapi import APIRouter, FastAPI, HTTPException
+from pydantic import BaseModel
 
 from astro_mine_api._cors import add_cors
+from astro_mine_api._ids import unique_operation_id
 
 __all__ = ["PREFIX", "build_router", "create_app"]
 
 #: The component prefix every Cloud route is served under.
 PREFIX = "/cloud"
+
+
+class SweepExpansion(BaseModel):
+    """A sweep's deterministic expansion into concrete jobs.
+
+    Unlike the three ``compile`` routes below, this shape belongs to Astro-Mine rather than to an
+    execution engine, so it is declared rather than left open.
+    """
+
+    size: int
+    jobs: list[JobSpec]
 
 
 def build_router(
@@ -79,7 +92,14 @@ def build_router(
     def compile_job(
         job: JobSpec, namespace: str = "default", engine: str | None = None
     ) -> dict[str, Any]:
-        """Compile a JobSpec to its engine manifest (auto-routed unless *engine* is given)."""
+        """Compile a JobSpec to its engine manifest (auto-routed unless *engine* is given).
+
+        **Deliberately an open object.** The response is an execution engine's own manifest — an
+        Argo ``Workflow`` or a Kubernetes ``Job`` — whose schema belongs to that engine and changes
+        with it. Declaring a closed model here would either be a lie the first time an engine added
+        a field, or a second copy of someone else's API that this repository would have to chase.
+        A client that needs to read one of these knows which engine it asked for.
+        """
         name = engine if engine is not None else select_engine(job)
         try:
             return get_engine(name).compile(job, namespace=namespace)
@@ -87,21 +107,27 @@ def build_router(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @router.post("/sweeps/expand")
-    def expand_sweep(sweep: SweepSpec) -> dict[str, Any]:
+    def expand_sweep(sweep: SweepSpec) -> SweepExpansion:
         """Preview a SweepSpec's deterministic expansion into concrete jobs."""
         variants = sweep.expand()
-        return {"size": len(variants), "jobs": [v.model_dump(mode="json") for v in variants]}
+        return SweepExpansion(size=len(variants), jobs=list(variants))
 
-    @router.post("/sweeps/compile")
+    @router.post("/sweeps/compile", operation_id="cloud_compile_sweep")
     def compile_sweep_endpoint(sweep: SweepSpec, namespace: str = "default") -> dict[str, Any]:
-        """Compile a SweepSpec to its Argo fan-out Workflow."""
+        """Compile a SweepSpec to its Argo fan-out Workflow.
+
+        An open object for the same reason as ``compile_job`` above: this is Argo's schema.
+        """
         return compile_sweep(sweep, namespace=namespace)
 
-    @router.post("/workflows/compile")
+    @router.post("/workflows/compile", operation_id="cloud_compile_workflow")
     def compile_workflow_endpoint(
         workflow: WorkflowSpec, namespace: str = "default"
     ) -> dict[str, Any]:
-        """Compile a WorkflowSpec to its Argo DAG Workflow."""
+        """Compile a WorkflowSpec to its Argo DAG Workflow.
+
+        An open object for the same reason as ``compile_job`` above: this is Argo's schema.
+        """
         return compile_workflow(workflow, namespace=namespace)
 
     return router
@@ -117,6 +143,7 @@ def create_app(*, store: ArtifactStore | None = None, default_backend: str = "lo
     app = FastAPI(
         title="astro-mine-cloud",
         summary="Submission edge -- submit and compile jobs/sweeps/workflows.",
+        generate_unique_id_function=unique_operation_id,
     )
     # The browser tier calls this API cross-origin (_cors.py). Applied here as well as in
     # the composed app so a route test drives an app that behaves like the deployed one.

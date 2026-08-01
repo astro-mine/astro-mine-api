@@ -39,6 +39,8 @@ from astro_mine.cloud.submission.workflowspec import WorkflowSpec
 from astro_mine.core.artifacts import ArtifactStore
 from fastapi import APIRouter, FastAPI, HTTPException
 
+from astro_mine_api._cors import add_cors
+
 __all__ = ["PREFIX", "build_router", "create_app"]
 
 #: The component prefix every Cloud route is served under.
@@ -116,5 +118,8 @@ def create_app(*, store: ArtifactStore | None = None, default_backend: str = "lo
         title="astro-mine-cloud",
         summary="Submission edge -- submit and compile jobs/sweeps/workflows.",
     )
+    # The browser tier calls this API cross-origin (_cors.py). Applied here as well as in
+    # the composed app so a route test drives an app that behaves like the deployed one.
+    add_cors(app)
     app.include_router(build_router(store=store, default_backend=default_backend))
     return app

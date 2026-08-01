@@ -181,7 +181,7 @@ class TestPublishRoutes:
         assert app_client.post("/studio/campaigns/publish", json=body).status_code == 200
         conflict = app_client.post("/studio/campaigns/publish", json=body)
         assert conflict.status_code == 409
-        assert "immutable" in conflict.json()["detail"]
+        assert conflict.json()["code"] == "conflict"
 
     def test_pulling_an_unknown_campaign_is_a_404(self, app_client: TestClient) -> None:
         assert app_client.get("/studio/campaigns/nope:0.0.1").status_code == 404
@@ -288,14 +288,16 @@ class TestComparisonRoute:
 
 
 class TestWithoutTheHubSeams:
-    """Built without the Hub seams (the `[hub]` extra is optional), the routes say so."""
+    """Built with no registry to resolve from, the Hub-backed routes say so rather than pretend."""
 
     def test_terrain_and_pull_report_unavailable(self) -> None:
         client = TestClient(create_app())
         for path in ("/studio/worlds/w1:0.1.0", "/studio/campaigns/anything:1.0.0"):
             response = client.get(path)
             assert response.status_code == 503
-            assert "without the [hub] extra" in response.json()["detail"]
+            # The code, not the message (api#4). Which seam is unwired is in `detail` for a person
+            # to read; a client branches on this.
+            assert response.json()["code"] == "capability_unavailable"
 
     def test_publish_reports_unavailable_once_the_body_validates(
         self, objective_doc: ObjectiveDocument, clients: SiblingClients
@@ -307,7 +309,7 @@ class TestWithoutTheHubSeams:
             json={"campaign": campaign.model_dump(mode="json"), "name": "n", "version": "0.1.0"},
         )
         assert response.status_code == 503
-        assert "publishing is unavailable" in response.json()["detail"]
+        assert response.json()["code"] == "capability_unavailable"
 
 
 def test_the_route_module_never_imports_hub() -> None:

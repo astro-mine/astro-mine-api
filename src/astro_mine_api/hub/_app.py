@@ -7,14 +7,16 @@ first, service second"). :func:`create_app` is a factory taking an injected cata
 registry for attestation status and audit log), so it runs against any backend and is exercised
 offline via Starlette's ``TestClient``.
 
-Endpoints, all under the ``/hub`` prefix: ``/hub/health``; ``POST /hub/publish`` (index a Core
-manifest); ``GET /hub/search`` (faceted + full-text + semantic); ``GET
-/hub/artifacts/{name}/{version}`` (record + attestations); ``POST /hub/resolve`` (pinned-digest
-resolution); ``POST /hub/artifacts/{name}/{version}/download`` (the gated boundary — 403, no
-digest, when policy denies).
+Endpoints, all under the ``/hub`` prefix: ``/hub/healthz`` (and ``/hub/health``, deprecated);
+``POST /hub/publish`` (index a Core manifest); ``GET /hub/search`` (faceted + full-text +
+semantic); ``GET /hub/artifacts/{name}/{version}`` (record + attestations); ``POST /hub/resolve``
+(pinned-digest resolution); ``POST /hub/artifacts/{name}/{version}/download`` (the gated boundary —
+403, no digest, when policy denies).
 
 Ported from ``astro_mine.hub.api._app`` (astro-mine-hub) unchanged but for the import paths and
-the component prefix: same handlers, same bodies, same status codes.
+the component prefix: same handlers, same bodies, same status codes. Two things have changed since:
+the health endpoint converged on ``/healthz`` with the other three surfaces, and every refusal now
+leaves as a problem document naming its :class:`~astro_mine_api._errors.ErrorCode` (api#4).
 """
 
 from __future__ import annotations
@@ -22,7 +24,6 @@ from __future__ import annotations
 from typing import Any
 
 from astro_mine.core.registry import PluginManifest
-from astro_mine.hub import __version__
 from astro_mine.hub.index import Catalog, CatalogEntry
 from astro_mine.hub.policy import (
     DEFAULT_ALLOWED_LICENSES,
@@ -36,16 +37,43 @@ from astro_mine.hub.registry import RegistryClient
 from astro_mine.hub.resolve import ResolutionError, ResolutionRequest, resolve
 from astro_mine.hub.search import SearchQuery, search
 from astro_mine.hub.supply_chain import SupplyChainError, admit
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, Response
 from pydantic import BaseModel, Field
 
+from astro_mine_api import __version__
 from astro_mine_api._cors import add_cors
+from astro_mine_api._errors import ERROR_RESPONSES, ApiError, ErrorCode, add_error_handlers
+from astro_mine_api._health import Health, health
 from astro_mine_api._ids import unique_operation_id
 
-__all__ = ["PREFIX", "build_router", "create_app"]
+__all__ = ["DEPRECATED_HEALTH_PATH", "PREFIX", "build_router", "create_app"]
 
 #: The component prefix every Hub route is served under.
 PREFIX = "/hub"
+
+#: Hub's pre-convergence health spelling. Kept for one cycle so a probe configured against it does
+#: not start failing on a deploy, and removed after (api.md §4).
+DEPRECATED_HEALTH_PATH = "/health"
+
+#: Announced on the deprecated alias. ``Deprecation`` states the fact; ``Link`` names what to use
+#: instead, so a client is told where to go rather than merely that it is wrong.
+_DEPRECATION_HEADERS = {
+    "Deprecation": "true",
+    "Link": f'<{PREFIX}/healthz>; rel="successor-version"',
+}
+
+#: The same two headers as the document declares them, so the deprecation is machine-readable to a
+#: client that reads the schema as well as to one that reads the response.
+_DEPRECATION_HEADER_SCHEMA = {
+    "Deprecation": {
+        "description": "Always `true`. This endpoint is deprecated.",
+        "schema": {"type": "string"},
+    },
+    "Link": {
+        "description": 'The successor: `</hub/healthz>; rel="successor-version"`.',
+        "schema": {"type": "string"},
+    },
+}
 
 
 class PublishBody(BaseModel):
@@ -179,11 +207,28 @@ def build_router(
     surface alongside the other three in one process (api.md §6); :func:`create_app` is the
     single-surface deployment of the same router.
     """
-    router = APIRouter(prefix=PREFIX)
+    router = APIRouter(prefix=PREFIX, responses=ERROR_RESPONSES)
 
-    @router.get("/health")
-    def health() -> dict[str, str]:
-        return {"status": "ok", "version": __version__}
+    @router.get("/healthz", operation_id="hub_healthz")
+    def healthz() -> Health:
+        return health("hub")
+
+    @router.get(
+        DEPRECATED_HEALTH_PATH,
+        operation_id="hub_health",
+        deprecated=True,
+        summary="Deprecated alias for /hub/healthz.",
+        responses={200: {"headers": _DEPRECATION_HEADER_SCHEMA}},
+    )
+    def deprecated_health(response: Response) -> Health:
+        """The pre-convergence spelling, answering the same body as ``/hub/healthz``.
+
+        Hub was the one surface spelling this ``/health``; ``api.md`` §4 said the spelling
+        converges during the move, and it has. This stays for one cycle so nothing that probes it
+        breaks on the deploy that converges it, and says so in the document and in its headers.
+        """
+        response.headers.update(_DEPRECATION_HEADERS)
+        return health("hub")
 
     @router.post("/publish")
     def publish(body: PublishBody) -> SearchHit:
@@ -196,21 +241,17 @@ def build_router(
         promotion is a curated, audited action (hub.md §9), never a field in a publish request.
         """
         if registry is None:
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    "publishing is not configured on this deployment: admission requires a "
-                    "registry to verify against, and indexing without one cannot be fail-closed"
-                ),
+            raise ApiError(
+                ErrorCode.PUBLISH_UNCONFIGURED,
+                "publishing is not configured on this deployment: admission requires a "
+                "registry to verify against, and indexing without one cannot be fail-closed",
             )
         if body.namespace != "open":
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    f"namespace {body.namespace!r} cannot be claimed at publish; artifacts are "
-                    f"admitted to 'open' and reach a trusted tier only through an audited "
-                    f"promotion that verifies their evidence"
-                ),
+            raise ApiError(
+                ErrorCode.NAMESPACE_REFUSED,
+                f"namespace {body.namespace!r} cannot be claimed at publish; artifacts are "
+                f"admitted to 'open' and reach a trusted tier only through an audited "
+                f"promotion that verifies their evidence",
             )
         manifest = PluginManifest.model_validate(body.manifest)
         try:
@@ -224,8 +265,10 @@ def build_router(
             )
         except SupplyChainError as exc:
             # Fail closed and say why: a rejected publish is an integrity verdict the caller needs
-            # to act on, not an opaque 500.
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+            # to act on, not an opaque 500. `admission_rejected` is the code the front end switches
+            # on to tell this from `publish_unconfigured` above — the distinction it used to make by
+            # reading a bare HTTP status (api#4).
+            raise ApiError(ErrorCode.ADMISSION_REJECTED, str(exc)) from exc
         return _hit(entry, 1.0)
 
     @router.get("/search", operation_id="hub_search")
@@ -253,7 +296,7 @@ def build_router(
     def artifact(name: str, version: str) -> ArtifactDetail:
         entry = catalog.get(f"{name}:{version}")
         if entry is None:
-            raise HTTPException(status_code=404, detail="artifact not found")
+            raise ApiError(ErrorCode.CONTENT_NOT_FOUND, "artifact not found")
         return _detail(entry, registry)
 
     @router.post("/resolve", operation_id="hub_resolve")
@@ -267,7 +310,9 @@ def build_router(
         try:
             resolution = resolve(catalog, request)
         except ResolutionError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+            # Not `content_not_found`: the name may well exist, and the constraint set is what could
+            # not be satisfied. A client shows those two 404s differently.
+            raise ApiError(ErrorCode.RESOLUTION_FAILED, str(exc)) from exc
         primary = resolution.primary
         return ResolveResult(
             reference=primary.reference,
@@ -279,7 +324,7 @@ def build_router(
     def download(name: str, version: str, body: DownloadBody) -> DownloadGrant:
         entry = catalog.get(f"{name}:{version}")
         if entry is None:
-            raise HTTPException(status_code=404, detail="artifact not found")
+            raise ApiError(ErrorCode.CONTENT_NOT_FOUND, "artifact not found")
         request = DownloadRequest(
             grants=frozenset(body.grants),
             allowed_licenses=(
@@ -292,7 +337,7 @@ def build_router(
         try:
             decision = gate(entry, request, audit=audit, engine=engine)
         except GatedDownload as exc:
-            raise HTTPException(status_code=403, detail=str(exc)) from exc
+            raise ApiError(ErrorCode.DOWNLOAD_DENIED, str(exc)) from exc
         # The policy version travels with the grant: a consumer can record which rules let it in.
         return DownloadGrant(
             digest=entry.digest,
@@ -321,8 +366,10 @@ def create_app(
         version=__version__,
         generate_unique_id_function=unique_operation_id,
     )
-    # The browser tier calls this API cross-origin (_cors.py). Applied here as well as in
-    # the composed app so a route test drives an app that behaves like the deployed one.
+    # The browser tier calls this API cross-origin (_cors.py), and every refusal leaves as a problem
+    # document (_errors.py). Applied here as well as in the composed app so a route test drives an
+    # app that behaves — and fails — like the deployed one.
     add_cors(app)
+    add_error_handlers(app)
     app.include_router(build_router(catalog, registry=registry, audit=audit, engine=engine))
     return app

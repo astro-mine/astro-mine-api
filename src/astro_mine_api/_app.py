@@ -25,10 +25,11 @@ import os
 from collections.abc import Iterable
 
 from fastapi import FastAPI
-from pydantic import BaseModel
 
 from astro_mine_api import __version__
 from astro_mine_api._cors import add_cors
+from astro_mine_api._errors import ERROR_RESPONSES, add_error_handlers
+from astro_mine_api._health import Health, health
 from astro_mine_api._ids import unique_operation_id
 
 __all__ = [
@@ -47,11 +48,14 @@ SURFACES_ENV = "ASTRO_MINE_API_SURFACES"
 SURFACES: tuple[str, ...] = ("hub", "studio", "cloud", "bench")
 
 
-class DeploymentHealth(BaseModel):
-    """Liveness for the deployment as a whole, naming what it mounted."""
+class DeploymentHealth(Health):
+    """Liveness for the deployment as a whole, naming what it mounted.
 
-    status: str
-    version: str
+    The surface health shape plus one field, rather than a shape of its own: a probe or a status
+    page that reads ``/hub/healthz`` reads this the same way, and only has to know about
+    ``surfaces`` if it cares which ones this process serves.
+    """
+
     surfaces: list[str]
 
 
@@ -93,19 +97,21 @@ def build_app(surfaces: Iterable[str] | None = None) -> FastAPI:
         generate_unique_id_function=unique_operation_id,
     )
     # The front end is a static export, so the browser calls this API from another origin
-    # (_cors.py). Installed before the routes so every surface this deployment mounts is covered
-    # by one policy rather than four.
+    # (_cors.py), and every refusal leaves as one problem document (_errors.py). Both installed
+    # before the routes so every surface this deployment mounts is covered by one policy and one
+    # error contract rather than four.
     add_cors(app)
+    add_error_handlers(app)
 
-    @app.get("/healthz", tags=["meta"])
+    @app.get("/healthz", tags=["meta"], responses=ERROR_RESPONSES)
     def healthz() -> DeploymentHealth:
         """Liveness for the deployment as a whole, naming what it serves.
 
-        Each surface keeps its own health endpoint under its own prefix — this one answers "is
-        this process up, and which surfaces did it mount?", which is the question a load balancer
-        in front of a multi-surface deployment actually asks.
+        Each surface answers ``/healthz`` under its own prefix — this one answers "is this process
+        up, and which surfaces did it mount?", which is the question a load balancer in front of a
+        multi-surface deployment actually asks.
         """
-        return DeploymentHealth(status="ok", version=__version__, surfaces=list(names))
+        return DeploymentHealth(**health("api").model_dump(), surfaces=list(names))
 
     for name in names:
         _mount(app, name)

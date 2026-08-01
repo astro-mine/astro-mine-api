@@ -42,7 +42,9 @@ def _job_body(**overrides: object) -> dict:  # type: ignore[type-arg]
 
 
 def test_healthz_and_backends(client: TestClient) -> None:
-    assert client.get("/cloud/healthz").json() == {"status": "ok"}
+    body = client.get("/cloud/healthz").json()
+    # The one shape every surface answers with (api#4); `tests/test_health.py` owns the convergence.
+    assert body["status"] == "ok" and body["component"] == "cloud"
     assert "local" in client.get("/cloud/backends").json()["backends"]
 
 
@@ -58,7 +60,7 @@ def test_submit_runs_the_job(client: TestClient) -> None:
 def test_submit_unknown_backend_is_400(client: TestClient) -> None:
     response = client.post("/cloud/jobs", params={"backend": "nope"}, json=_job_body())
     assert response.status_code == 400
-    assert "unknown backend" in response.json()["detail"]
+    assert response.json()["code"] == "invalid_request"
 
 
 def test_malformed_spec_is_422(client: TestClient) -> None:

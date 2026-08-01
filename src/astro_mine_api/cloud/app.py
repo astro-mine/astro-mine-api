@@ -37,10 +37,12 @@ from astro_mine.cloud.submission.workflowspec import WorkflowSpec
 # from `astro_mine.cloud.artifacts.store` under TYPE_CHECKING, which no longer resolves — the one
 # import this port had to re-point rather than merely re-prefix.
 from astro_mine.core.artifacts import ArtifactStore
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI
 from pydantic import BaseModel
 
 from astro_mine_api._cors import add_cors
+from astro_mine_api._errors import ERROR_RESPONSES, ApiError, ErrorCode, add_error_handlers
+from astro_mine_api._health import Health, health
 from astro_mine_api._ids import unique_operation_id
 
 __all__ = ["PREFIX", "build_router", "create_app"]
@@ -70,11 +72,11 @@ def build_router(
     the backend used when a submit request does not name one.
     """
     artifact_store: ArtifactStore = store if store is not None else FilesystemArtifactStore()
-    router = APIRouter(prefix=PREFIX)
+    router = APIRouter(prefix=PREFIX, responses=ERROR_RESPONSES)
 
     @router.get("/healthz")
-    def healthz() -> dict[str, str]:
-        return {"status": "ok"}
+    def healthz() -> Health:
+        return health("cloud")
 
     @router.get("/backends")
     def backends() -> dict[str, list[str]]:
@@ -86,7 +88,7 @@ def build_router(
         try:
             return submit(job, backend=backend, store=artifact_store)
         except ValueError as exc:  # unknown backend, bad input address, ...
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise ApiError(ErrorCode.INVALID_REQUEST, str(exc)) from exc
 
     @router.post("/jobs/compile")
     def compile_job(
@@ -104,7 +106,7 @@ def build_router(
         try:
             return get_engine(name).compile(job, namespace=namespace)
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise ApiError(ErrorCode.INVALID_REQUEST, str(exc)) from exc
 
     @router.post("/sweeps/expand")
     def expand_sweep(sweep: SweepSpec) -> SweepExpansion:
@@ -145,8 +147,10 @@ def create_app(*, store: ArtifactStore | None = None, default_backend: str = "lo
         summary="Submission edge -- submit and compile jobs/sweeps/workflows.",
         generate_unique_id_function=unique_operation_id,
     )
-    # The browser tier calls this API cross-origin (_cors.py). Applied here as well as in
-    # the composed app so a route test drives an app that behaves like the deployed one.
+    # The browser tier calls this API cross-origin (_cors.py), and every refusal leaves as a problem
+    # document (_errors.py). Applied here as well as in the composed app so a route test drives an
+    # app that behaves -- and fails -- like the deployed one.
     add_cors(app)
+    add_error_handlers(app)
     app.include_router(build_router(store=store, default_backend=default_backend))
     return app

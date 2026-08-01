@@ -11,7 +11,7 @@ Roadmap: `RM-DIST-03`.
 
 | Surface | Owning component | Routes |
 |---|---|---|
-| **Hub registry API** | Hub | `/hub/publish` · `/hub/resolve` · `/hub/search` · `/hub/artifacts/{name}/{version}` (+ `/download`) · `/hub/health` |
+| **Hub registry API** | Hub | `/hub/publish` · `/hub/resolve` · `/hub/search` · `/hub/artifacts/{name}/{version}` (+ `/download`) · `/hub/healthz` |
 | **Studio API** | Studio | `/studio/intent` · `/studio/studies` · `/studio/studies/comparison` · `/studio/catalog/{assets,worlds,preview/{ref}}` · `/studio/worlds/{ref}` · `/studio/campaigns/publish` · `/studio/campaigns/{ref}` · `/studio/healthz` |
 | **Cloud submission edge** | Cloud | `/cloud/jobs` · `/cloud/jobs/compile` · `/cloud/sweeps/{compile,expand}` · `/cloud/workflows/compile` · `/cloud/backends` · `/cloud/healthz` |
 | **Bench leaderboard** | Bench | `/bench/submissions` (+ `/hub`, `/{id}`, `/{id}/replay`) · `/bench/scenarios` · `/bench/jobs/{id}` · `/bench/audit` · `/bench/metrics` · `/bench/healthz` |
@@ -38,8 +38,10 @@ uv run uvicorn --factory astro_mine_api._app:make_app         # all four surface
 ASTRO_MINE_API_SURFACES=hub,bench uv run uvicorn --factory astro_mine_api._app:make_app
 ```
 
-`GET /healthz` answers for the deployment as a whole and names the surfaces it mounted; each
-surface keeps its own health endpoint under its own prefix.
+`GET /healthz` answers for the deployment as a whole and names the surfaces it mounted; each surface
+answers `GET /<surface>/healthz` with the same body minus that list. `GET /hub/health` — the one
+pre-convergence spelling — still answers and is marked deprecated in the document and in its
+response headers; it goes after one cycle.
 
 Each surface can also be served alone through its own factory — `astro_mine_api.hub:create_app`,
 `astro_mine_api.studio.app:create_app`, `astro_mine_api.cloud.app:create_app`,
@@ -111,8 +113,32 @@ banner) came from `astro-mine-studio`'s `astro_mine/studio/cli.py`, where `astro
 already recorded that it "belongs with the REST surface, wherever that ships". The argparse front
 end stayed with the CLI.
 
-The `/health` vs `/healthz` inconsistency `api.md` §4 says should converge is **deliberately kept
-as-is**: converging it is a route change, and this was a port.
+The two conventions `api.md` §4 says converge during the move — the health-endpoint spelling and the
+error shape — did, in api#4, after the port. See "The error contract" below.
+
+## The error contract
+
+Every refusal from every surface is one **problem document** (RFC 9457,
+`application/problem+json`), carrying a stable machine-readable `code` a client branches on and a
+human-readable `detail` nobody parses:
+
+```json
+{ "code": "admission_rejected", "title": "Admission rejected", "status": 422,
+  "detail": "artifact sha256:… is unsigned", "errors": [] }
+```
+
+A validation failure is **one object**, not FastAPI's array: the field-level problems ride in
+`errors` and the same information is one sentence in `detail`, so the naive thing a browser does
+renders words.
+
+The codes live in `astro_mine_api._errors.ErrorCode` and are enumerated in the OpenAPI document, so
+a generated client gets them as a type. They are **append-only** — a code is public API the moment
+something switches on it. Handlers raise `ApiError(ErrorCode.X, "…")`, never a bare
+`HTTPException`; the status comes from the code, so a raise site cannot pair a reason with the wrong
+number.
+
+`add_error_handlers()` is installed by every app factory here, exactly as `add_cors()` is, so a
+route test drives an app that *fails* like the deployed one.
 
 ## Tests
 

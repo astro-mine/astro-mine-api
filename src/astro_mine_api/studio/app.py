@@ -55,11 +55,13 @@ from astro_mine.studio.orchestrate import (
     run_batch,
 )
 from astro_mine.studio.workspace import InMemoryWorkspace, WorkspaceStore
-from fastapi import APIRouter, FastAPI, HTTPException, Query
+from fastapi import APIRouter, FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 from pydantic import Field, ValidationError
 
 from astro_mine_api._cors import add_cors
+from astro_mine_api._errors import ERROR_RESPONSES, ApiError, ErrorCode, add_error_handlers
+from astro_mine_api._health import Health, health
 from astro_mine_api._ids import unique_operation_id
 
 __all__ = [
@@ -238,18 +240,23 @@ def build_router(
     """
     store: WorkspaceStore = workspace if workspace is not None else InMemoryWorkspace()
     siblings: SiblingClients = clients if clients is not None else local_clients()
-    router = APIRouter(prefix=PREFIX)
+    router = APIRouter(prefix=PREFIX, responses=ERROR_RESPONSES)
 
     def _require(seam: object, name: str) -> None:
         if seam is None:
-            raise HTTPException(
-                status_code=503,
-                detail=f"{name} is unavailable: Studio was built without the [hub] extra",
+            # The message named "the [hub] extra" when this was astro-mine-studio. There are no
+            # extras in this distribution (pyproject: "There are deliberately no extras"), and the
+            # seam is unwired because the *deployment* has no registry — which is a thing an
+            # operator can act on, unlike an install option that no longer exists.
+            raise ApiError(
+                ErrorCode.CAPABILITY_UNAVAILABLE,
+                f"{name} is unavailable: this deployment has no Hub registry configured "
+                f"(set ASTRO_MINE_HUB_REGISTRY)",
             )
 
     @router.get("/healthz")
-    def healthz() -> dict[str, str]:
-        return {"status": "ok"}
+    def healthz() -> Health:
+        return health("studio")
 
     @router.post("/intent", operation_id="studio_capture_intent")
     def capture(request: CaptureRequest) -> CapturedObjective:
@@ -261,7 +268,7 @@ def build_router(
                 model=request.model,
             )
         except (ObjectiveGateError, ObjectiveError, ValidationError) as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+            raise ApiError(ErrorCode.VALIDATION_FAILED, str(exc)) from exc
 
     @router.post("/studies")
     async def run_study(request: StudyRequest) -> StudyResponse:
@@ -318,9 +325,9 @@ def build_router(
                 phases=request.phases,
                 world_ref=request.world_ref,
             )
-        raise HTTPException(
-            status_code=422,
-            detail="provide either `campaign`, or `chosen` + `objective` to author one",
+        raise ApiError(
+            ErrorCode.VALIDATION_FAILED,
+            "provide either `campaign`, or `chosen` + `objective` to author one",
         )
 
     @router.post("/campaigns/publish")
@@ -333,7 +340,7 @@ def build_router(
             bundle = freeze_campaign(campaign)
             return publisher.publish_campaign(bundle, name=request.name, version=request.version)
         except Exception as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+            raise ApiError(ErrorCode.CONFLICT, str(exc)) from exc
 
     @router.get("/campaigns/{reference:path}")
     def pull_campaign(reference: str) -> Campaign:
@@ -343,7 +350,7 @@ def build_router(
         try:
             return publisher.pull_campaign(reference)
         except Exception as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+            raise ApiError(ErrorCode.CONTENT_NOT_FOUND, str(exc)) from exc
 
     @router.get("/worlds/{reference:path}")
     def resolve_world(reference: str) -> WorldResponse:
@@ -353,7 +360,7 @@ def build_router(
         try:
             world = materializer.materialize(reference)
         except Exception as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+            raise ApiError(ErrorCode.CONTENT_NOT_FOUND, str(exc)) from exc
         return WorldResponse(
             reference=world.reference,
             digest=world.digest,
@@ -370,7 +377,7 @@ def build_router(
         try:
             tags = [CapabilityTag(tag) for tag in requires]
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+            raise ApiError(ErrorCode.VALIDATION_FAILED, str(exc)) from exc
         return catalog.list_assets(requires=tags or None)
 
     @router.get("/catalog/worlds")
@@ -391,7 +398,7 @@ def build_router(
         try:
             preview = preview_materializer.preview(reference)
         except Exception as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+            raise ApiError(ErrorCode.CONTENT_NOT_FOUND, str(exc)) from exc
         return AssetPreviewResponse(
             reference=preview.reference,
             digest=preview.digest,
@@ -425,9 +432,11 @@ def create_app(
         version=__version__,
         generate_unique_id_function=unique_operation_id,
     )
-    # The browser tier calls this API cross-origin (_cors.py). Applied here as well as in
-    # the composed app so a route test drives an app that behaves like the deployed one.
+    # The browser tier calls this API cross-origin (_cors.py), and every refusal leaves as a problem
+    # document (_errors.py). Applied here as well as in the composed app so a route test drives an
+    # app that behaves — and fails — like the deployed one.
     add_cors(app)
+    add_error_handlers(app)
     mount_static(app, world_cache_dir=world_cache_dir, asset_cache_dir=asset_cache_dir)
     app.include_router(
         build_router(

@@ -150,6 +150,10 @@ def test_publish_endpoint_rejects_a_nonexistent_digest(tmp_path: Path) -> None:
         },
     )
     assert response.status_code == 422
+    assert response.json()["code"] == "admission_rejected"
+    # All three refusals below carry that one code — it is the verdict, and it is what a client
+    # branches on (api#4). Which of the three fired is the subject of these tests and lives only in
+    # the relayed message, so they read it to tell the cases apart, not to identify the failure.
     assert "not present in this registry" in response.json()["detail"]
     assert client.get("/hub/artifacts/pol/1.0.0").status_code == 404
 
@@ -169,6 +173,7 @@ def test_publish_endpoint_rejects_a_manifest_that_disagrees_with_the_stored_conf
         },
     )
     assert response.status_code == 422
+    assert response.json()["code"] == "admission_rejected"
     assert "does not match its stored config" in response.json()["detail"]
     assert client.get("/hub/artifacts/pol/1.0.0").status_code == 404
 
@@ -185,6 +190,7 @@ def test_publish_endpoint_rejects_an_unsigned_artifact(tmp_path: Path) -> None:
         },
     )
     assert response.status_code == 422
+    assert response.json()["code"] == "admission_rejected"
     assert "unsigned" in response.json()["detail"]
     assert client.get("/hub/artifacts/pol/1.0.0").status_code == 404
 
@@ -244,7 +250,10 @@ def test_the_library_and_the_service_reach_the_same_gate(tmp_path: Path) -> None
     )
 
     assert response.status_code == 422
-    # Not merely "both refused" — the *same* verdict text, which is what proves one gate.
+    assert response.json()["code"] == "admission_rejected"
+    # Not merely "both refused" — the *same* verdict text, which is what proves one gate. An
+    # equality against the library's own message asserts the route **relays** it; it is the one
+    # thing a message assertion is still for once there is a code (api#4).
     assert response.json()["detail"] == str(library_error.value)
     assert library_catalog.get("pol:1.0.0") is None
 

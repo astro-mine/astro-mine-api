@@ -52,11 +52,21 @@ Every surface is wired from the same environment variables its component reposit
 | Variable | Surface | Meaning |
 |---|---|---|
 | `ASTRO_MINE_API_SURFACES` | — | comma-separated surfaces to mount (default: all four) |
+| `ASTRO_MINE_API_CORS_ORIGINS` | — | comma-separated origins the browser tier may call from (default: `http://localhost:3000`, `http://127.0.0.1:3000`) |
 | `HUB_POSTGRES_URL` | Hub | hosted catalog DSN (default: in-memory SQLite) |
 | `ASTRO_MINE_HUB_REGISTRY` | Studio, Bench | local OCI-layout registry path |
 | `ASTRO_MINE_STUDIO_TRUSTED_KEY` / `_SIGNING_KEY` / `_CACHE` | Studio | verify key, signing key, content cache |
 | `ASTRO_MINE_BENCH_DB` / `_OBJECTS` / `_CATALOG_DSN` | Bench | submission store, object store, zoo catalog |
 | `ASTRO_MINE_BENCH_SANDBOX_*` | Bench | evaluation-worker resource envelope |
+
+**Cross-origin access.** The front end is a static export, so the browser fetches the bundle from
+wherever it is hosted and then calls this API directly — from a different origin. A deployment
+serving a browser tier MUST set `ASTRO_MINE_API_CORS_ORIGINS` to the origin the application is
+served from, or every call fails at the preflight and the application is inert. The default covers
+local development and nothing else; `*` is honoured as an explicit choice for a public read API, and
+is safe here only because **credentials are never permitted** — nothing in the browser tier carries a
+cookie. A request that sends no `Origin` header is unaffected in every case, so `curl`, the CLI and
+server-to-server callers behave exactly as they did before.
 
 **The local tier does not need this distribution at all**, and that is a requirement rather than
 an accident (CX-LOCAL): Hub's tier-1 client, Bench's local scoring, Cloud's local backend and

@@ -1,0 +1,5335 @@
+{
+  "components": {
+    "schemas": {
+      "ArtifactDetail": {
+        "description": "A single artifact: its projection, its full catalog record, and what is attested.\n\n``attestations`` names the attestation *types present in the registry* \u2014 it is emphatically not\na verification verdict, and the front end is required to say so in those words (ui.md \u00a77).\nEmpty when the deployment has no registry to ask.",
+        "properties": {
+          "artifact_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Kind"
+          },
+          "attestations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Attestations",
+            "type": "array"
+          },
+          "deprecated": {
+            "default": false,
+            "title": "Deprecated",
+            "type": "boolean"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "license": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "namespace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Namespace"
+          },
+          "publisher": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publisher"
+          },
+          "record": {
+            "additionalProperties": true,
+            "title": "Record",
+            "type": "object"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
+          "yanked": {
+            "default": false,
+            "title": "Yanked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reference",
+          "digest",
+          "name",
+          "version",
+          "score",
+          "record"
+        ],
+        "title": "ArtifactDetail",
+        "type": "object"
+      },
+      "ArtifactProvenance": {
+        "additionalProperties": false,
+        "description": "The reproducibility envelope stamped on every produced Studio artifact.",
+        "properties": {
+          "code_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Version"
+          },
+          "core_interface_versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Core Interface Versions",
+            "type": "object"
+          },
+          "engine_versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Engine Versions",
+            "type": "object"
+          },
+          "env_lockfile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Env Lockfile"
+          },
+          "input_hashes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Input Hashes",
+            "type": "array"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "toolchain_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toolchain Version"
+          }
+        },
+        "title": "ArtifactProvenance",
+        "type": "object"
+      },
+      "AssetPreviewResponse": {
+        "additionalProperties": false,
+        "description": "An asset Studio pulled from Hub by digest and is now serving to the embedded View.",
+        "properties": {
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "document_url": {
+            "title": "Document Url",
+            "type": "string"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference",
+          "digest",
+          "document_url"
+        ],
+        "title": "AssetPreviewResponse",
+        "type": "object"
+      },
+      "AssetSelection": {
+        "additionalProperties": false,
+        "description": "A Fleet SADF asset chosen for a swarm, by content reference + count. ``sadf_ref``\nis a content hash / catalog id resolved from Hub, never an imported object.",
+        "properties": {
+          "count": {
+            "minimum": 1.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "sadf_ref": {
+            "title": "Sadf Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sadf_ref",
+          "count"
+        ],
+        "title": "AssetSelection",
+        "type": "object"
+      },
+      "AuditDecision": {
+        "description": "What the trail records: an authorization outcome, or the outcome of a verification.",
+        "enum": [
+          "allow",
+          "deny",
+          "verified",
+          "rejected"
+        ],
+        "title": "AuditDecision",
+        "type": "string"
+      },
+      "AuditEvent": {
+        "additionalProperties": false,
+        "description": "One decision, recorded. Frozen: the trail is append-only.\n\n``event_id`` content-addresses the record, so the same decision logged twice is recognisably the\nsame decision, and an event cannot be silently altered without changing its id.",
+        "properties": {
+          "action": {
+            "minLength": 1,
+            "title": "Action",
+            "type": "string"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/AuditDecision"
+          },
+          "detail": {
+            "additionalProperties": true,
+            "title": "Detail",
+            "type": "object"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "string"
+          },
+          "issuer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuer"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "resource": {
+            "default": "",
+            "title": "Resource",
+            "type": "string"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "submission_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submission Id"
+          },
+          "trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Id"
+          }
+        },
+        "required": [
+          "event_id",
+          "occurred_at",
+          "action",
+          "decision"
+        ],
+        "title": "AuditEvent",
+        "type": "object"
+      },
+      "BenchJobRecord": {
+        "additionalProperties": false,
+        "description": "Bench's evaluation job record, named for the document rather than for the module.\n\nBench and Studio each own a ``JobRecord``, and they are genuinely different things \u2014 one tracks\nan evaluation, the other a design study. Mounted in one process they collide in the OpenAPI\ndocument, and FastAPI disambiguates by prefixing the module path, which produces\n``astro_mine__bench__leaderboard___jobs__JobRecord`` and a generated client method returning a\ntype nobody can type.\n\nThe collision is an artifact of *composition* \u2014 it exists only because this distribution serves\nboth surfaces from one document \u2014 so it is resolved here rather than by renaming a platform type\nthat is unambiguous on its own. This subclass adds nothing: every field is inherited, so the\ndocument and the platform model cannot drift.",
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "job_id": {
+            "minLength": 1,
+            "title": "Job Id",
+            "type": "string"
+          },
+          "result_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SubmissionStatus"
+          }
+        },
+        "required": [
+          "job_id",
+          "status"
+        ],
+        "title": "BenchJobRecord",
+        "type": "object"
+      },
+      "Campaign": {
+        "additionalProperties": false,
+        "description": "A chosen design authored into a timeline with contingency branches \u2014 the Core-shaped\nartifact handed to Ops **unchanged** in Phase 2 (studio.md \u00a73, \u00a79 \"hand-off, don't\nfork\"). Studio-owned (Core has no campaign schema in the pinned interface); frozen and\ncontent-addressed once handed off.",
+        "properties": {
+          "chosen": {
+            "$ref": "#/components/schemas/EvaluatedCandidate"
+          },
+          "contingencies": {
+            "items": {
+              "$ref": "#/components/schemas/ContingencyBranch"
+            },
+            "title": "Contingencies",
+            "type": "array"
+          },
+          "evaluator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluator"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "objective_hash": {
+            "title": "Objective Hash",
+            "type": "string"
+          },
+          "phases": {
+            "items": {
+              "$ref": "#/components/schemas/CampaignPhase"
+            },
+            "minItems": 1,
+            "title": "Phases",
+            "type": "array"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/ArtifactProvenance"
+          },
+          "trade_study_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trade Study Ref"
+          },
+          "world_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "World Ref"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "objective_hash",
+          "chosen",
+          "phases",
+          "provenance"
+        ],
+        "title": "Campaign",
+        "type": "object"
+      },
+      "CampaignPhase": {
+        "additionalProperties": false,
+        "description": "One phase of a campaign timeline (studio.md \u00a73). ``objective_ref`` optionally binds\na phase to a per-phase objective by content hash; single-phase campaigns are the\ncommon lunar case (a single-``surface``-phase Mission is exactly a campaign, RFC-0001).",
+        "properties": {
+          "duration_s": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "objective_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objective Ref"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "CampaignPhase",
+        "type": "object"
+      },
+      "CandidateScore": {
+        "additionalProperties": false,
+        "description": "The Bench score of a candidate against an objective. Uncertainty is **shown, not\nhidden** (studio.md \u00a72 principle 7): surrogate/low-fidelity estimates carry an\nexplicit per-metric bound alongside the point estimate.",
+        "properties": {
+          "aggregate": {
+            "title": "Aggregate",
+            "type": "number"
+          },
+          "metric_scores": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Metric Scores",
+            "type": "object"
+          },
+          "metric_uncertainty": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Metric Uncertainty",
+            "type": "object"
+          },
+          "objective_hash": {
+            "title": "Objective Hash",
+            "type": "string"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "objective_hash",
+          "metric_scores",
+          "aggregate",
+          "passed"
+        ],
+        "title": "CandidateScore",
+        "type": "object"
+      },
+      "CaptureRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "draft": {
+            "$ref": "#/components/schemas/IntentDraft"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "vocabulary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetricVocabulary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "draft"
+        ],
+        "title": "CaptureRequest",
+        "type": "object"
+      },
+      "CapturedObjective": {
+        "additionalProperties": false,
+        "description": "The persisted result of intent capture: the validated document, its content\naddress, and the provenance that reproduces it.",
+        "properties": {
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "document": {
+            "$ref": "#/components/schemas/ObjectiveDocument"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/ArtifactProvenance"
+          }
+        },
+        "required": [
+          "document",
+          "digest",
+          "provenance"
+        ],
+        "title": "CapturedObjective",
+        "type": "object"
+      },
+      "CheckpointPolicy": {
+        "additionalProperties": false,
+        "description": "When to checkpoint a long/preemptible job so a spot eviction loses <= one interval.\n\nA job carrying a checkpoint policy is resumable: ``autoscale/checkpoint.py`` writes\ncontent-addressed checkpoints to the artifact store every ``interval_seconds`` and, on\npreemption, resumes from the last one (``cloud.md`` \u00a78; RM-P1-CLOUD-03).",
+        "properties": {
+          "interval_seconds": {
+            "exclusiveMinimum": 0.0,
+            "title": "Interval Seconds",
+            "type": "integer"
+          },
+          "resume": {
+            "default": true,
+            "title": "Resume",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "interval_seconds"
+        ],
+        "title": "CheckpointPolicy",
+        "type": "object"
+      },
+      "ComparisonCandidate": {
+        "additionalProperties": false,
+        "description": "One evaluated candidate, as the trade-off plots read it.",
+        "properties": {
+          "aggregate": {
+            "title": "Aggregate",
+            "type": "number"
+          },
+          "candidate_id": {
+            "title": "Candidate Id",
+            "type": "string"
+          },
+          "metrics": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MetricEstimate"
+            },
+            "title": "Metrics",
+            "type": "object"
+          },
+          "on_pareto_front": {
+            "title": "On Pareto Front",
+            "type": "boolean"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "candidate_id",
+          "seed",
+          "aggregate",
+          "passed",
+          "on_pareto_front",
+          "metrics"
+        ],
+        "title": "ComparisonCandidate",
+        "type": "object"
+      },
+      "ComparisonView": {
+        "additionalProperties": false,
+        "description": "A trade study reshaped for the Pareto scatter and parallel-coordinates plots.",
+        "properties": {
+          "backend": {
+            "title": "Backend",
+            "type": "string"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/ComparisonCandidate"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "evaluator": {
+            "title": "Evaluator",
+            "type": "string"
+          },
+          "metrics": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "objective_hash": {
+            "title": "Objective Hash",
+            "type": "string"
+          },
+          "pareto_front": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pareto Front",
+            "type": "array"
+          },
+          "study_id": {
+            "title": "Study Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "study_id",
+          "objective_hash",
+          "backend",
+          "evaluator",
+          "metrics",
+          "candidates",
+          "pareto_front"
+        ],
+        "title": "ComparisonView",
+        "type": "object"
+      },
+      "ContingencyBranch": {
+        "additionalProperties": false,
+        "description": "An alternate phase sequence taken when ``trigger`` fires (studio.md \u00a73).",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "phases": {
+            "items": {
+              "$ref": "#/components/schemas/CampaignPhase"
+            },
+            "minItems": 1,
+            "title": "Phases",
+            "type": "array"
+          },
+          "trigger": {
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "trigger",
+          "phases"
+        ],
+        "title": "ContingencyBranch",
+        "type": "object"
+      },
+      "DeploymentHealth": {
+        "description": "Liveness for the deployment as a whole, naming what it mounted.",
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "surfaces": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Surfaces",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "surfaces"
+        ],
+        "title": "DeploymentHealth",
+        "type": "object"
+      },
+      "DesignCandidate": {
+        "additionalProperties": false,
+        "description": "A proposed solution: an SADF swarm composition + infrastructure + a policy stack\n(drawn from Hub by ref), plus the decision-variable vector that produced it\n(STUDIO-02 fills the vector; STUDIO-03 only consumes the candidate).",
+        "properties": {
+          "decision_vector": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Decision Vector",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "infrastructure": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Infrastructure",
+            "type": "array"
+          },
+          "policy_refs": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Policy Refs",
+            "type": "object"
+          },
+          "swarm": {
+            "items": {
+              "$ref": "#/components/schemas/AssetSelection"
+            },
+            "title": "Swarm",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "swarm"
+        ],
+        "title": "DesignCandidate",
+        "type": "object"
+      },
+      "DownloadBody": {
+        "description": "What a requester presents at the gated download boundary.",
+        "properties": {
+          "allowed_licenses": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Licenses"
+          },
+          "grants": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Grants",
+            "type": "array"
+          },
+          "require_verified": {
+            "default": false,
+            "title": "Require Verified",
+            "type": "boolean"
+          }
+        },
+        "title": "DownloadBody",
+        "type": "object"
+      },
+      "DownloadGrant": {
+        "description": "Permission to materialize an artifact, with the policy that granted it.\n\nThe policy version travels with the grant so a consumer can record which rules let it in.",
+        "properties": {
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "policy_engine": {
+            "title": "Policy Engine",
+            "type": "string"
+          },
+          "policy_version": {
+            "title": "Policy Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "digest",
+          "policy_version",
+          "policy_engine"
+        ],
+        "title": "DownloadGrant",
+        "type": "object"
+      },
+      "EnvironmentFingerprint": {
+        "additionalProperties": false,
+        "description": "Observational environment stamp -- recorded, but *outside* the determinism set.",
+        "properties": {
+          "code_version": {
+            "title": "Code Version",
+            "type": "string"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "python": {
+            "title": "Python",
+            "type": "string"
+          }
+        },
+        "title": "EnvironmentFingerprint",
+        "type": "object"
+      },
+      "EnvironmentStamp": {
+        "additionalProperties": false,
+        "description": "The machine fingerprint \u2014 recorded for audit, kept OUT of the result hash.\n\nExcluded from :attr:`Result.result_hash` so a Result reproduces byte-for-byte across machines\nand interpreters (mirrors Sim's environment fingerprint, ``recording/__init__.py``).",
+        "properties": {
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "python": {
+            "title": "Python",
+            "type": "string"
+          }
+        },
+        "required": [
+          "python",
+          "platform"
+        ],
+        "title": "EnvironmentStamp",
+        "type": "object"
+      },
+      "EvaluatedCandidate": {
+        "additionalProperties": false,
+        "description": "A candidate that has been fanned through the design loop and scored, with the\nprovenance needed to reproduce it (studio.md \u00a76).",
+        "properties": {
+          "candidate": {
+            "$ref": "#/components/schemas/DesignCandidate"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/ArtifactProvenance"
+          },
+          "score": {
+            "$ref": "#/components/schemas/CandidateScore"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "integer"
+          },
+          "world_ref": {
+            "title": "World Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidate",
+          "score",
+          "seed",
+          "world_ref",
+          "provenance"
+        ],
+        "title": "EvaluatedCandidate",
+        "type": "object"
+      },
+      "EvaluationWindow": {
+        "additionalProperties": false,
+        "description": "How a metric binding is evaluated over time. Without one, a binding is evaluated\ncumulatively over the whole episode. A ``rolling`` window expresses rate/sustained\nobjectives (\"10 t per lunar day\") and requires ``duration_s``; ``cumulative`` and\n``per_phase`` forbid it (enforced in the loader). Time-windowing semantics are the\nmetric's job (Bench); this declares the intent.",
+        "properties": {
+          "duration_s": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/WindowKind"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "EvaluationWindow",
+        "type": "object"
+      },
+      "GeoRegion": {
+        "additionalProperties": false,
+        "description": "A body/region an objective is stated against, carrying an **explicit planetary\nCRS** (conventions.md \u00a75) \u2014 no implicit Earth/WGS84 assumption. ``crs`` is the Core\n``PlanetaryCRS`` type; the deterministic-forms path rejects a missing/invalid CRS\nat the boundary (see ``intent.forms``).",
+        "properties": {
+          "crs": {
+            "$ref": "#/components/schemas/PlanetaryCRS"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "crs"
+        ],
+        "title": "GeoRegion",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HardConstraint": {
+        "additionalProperties": false,
+        "description": "A power/thermal/comms/safety hard constraint \u2192 a *required* success criterion\nwith a pass/fail ``threshold`` (studio.md \u00a73).",
+        "properties": {
+          "criterion_id": {
+            "title": "Criterion Id",
+            "type": "string"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/MetricDirection",
+            "default": "lower_better"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "number"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "criterion_id",
+          "metric",
+          "unit",
+          "threshold"
+        ],
+        "title": "HardConstraint",
+        "type": "object"
+      },
+      "HubSubmissionRequest": {
+        "additionalProperties": false,
+        "description": "A community submission referenced **only by Hub digest** (RM-P1-BENCH-10; bench.md \u00a76).\n\n``hub_ref`` is a Hub reference \u2014 a ``name:version`` tag or a ``sha256:`` image-manifest digest \u2014\nthat Bench resolves from Hub, **verifies fail-closed** (content address, then cosign signature +\nSLSA provenance + SBOM \u2014 bench#29), whose Core plugin manifest is validated against the scenario\ninterface, and which is then run under submit-policy-we-run **inside a sandbox** (bench#30). No\npolicy bytes are uploaded: the artifact is authenticated by content hash and by signature.\n\n``method``/``author`` are display metadata only. There is deliberately **no ``identity``\nfield**: the submitter's identity comes from the verified OIDC bearer token, and rate limits,\nquotas, job tickets, and audit records are all keyed on that (bench#29). The pre-bench#29 model\ncarried a client-supplied ``identity`` that keyed the rate limiter \u2014 so a submitter could reset\ntheir own quota by editing a JSON field.",
+        "properties": {
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "hub_ref": {
+            "minLength": 1,
+            "title": "Hub Ref",
+            "type": "string"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "scenario_id": {
+            "minLength": 1,
+            "title": "Scenario Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "hub_ref"
+        ],
+        "title": "HubSubmissionRequest",
+        "type": "object"
+      },
+      "ImageRef": {
+        "additionalProperties": false,
+        "description": "A digest-pinned OCI image reference (``repository@sha256:<hex>``).\n\n``repository`` is the image name (registry/namespace/name, without a tag or digest);\n``digest`` is the ``sha256:<hex>`` content digest that pins the exact image; ``tag``\nis optional and *informational only* -- reproducibility rides on the digest, never on\nthe tag.",
+        "properties": {
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "repository": {
+            "title": "Repository",
+            "type": "string"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tag"
+          }
+        },
+        "required": [
+          "repository",
+          "digest"
+        ],
+        "title": "ImageRef",
+        "type": "object"
+      },
+      "IntentDraft": {
+        "additionalProperties": false,
+        "description": "The full richness captured by the no-LLM forms \u2014 a superset of what a Core\n``ObjectiveSpec`` can hold. The optimization-relevant part (criteria + metric\nbindings) projects into an ``ObjectiveSpec``; the design-space inputs (asset\ninventory-or-budget, region) are Studio workspace state consumed by the trade-study\nengine (STUDIO-02).",
+        "properties": {
+          "author": {
+            "title": "Author",
+            "type": "string"
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget"
+          },
+          "constraints": {
+            "items": {
+              "$ref": "#/components/schemas/HardConstraint"
+            },
+            "title": "Constraints",
+            "type": "array"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "inventory": {
+            "items": {
+              "$ref": "#/components/schemas/AssetSelection"
+            },
+            "title": "Inventory",
+            "type": "array"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "products": {
+            "items": {
+              "$ref": "#/components/schemas/TargetProduct"
+            },
+            "title": "Products",
+            "type": "array"
+          },
+          "region": {
+            "$ref": "#/components/schemas/GeoRegion"
+          },
+          "scenario_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Ref"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "author",
+          "region"
+        ],
+        "title": "IntentDraft",
+        "type": "object"
+      },
+      "JobRecord": {
+        "additionalProperties": false,
+        "description": "The durable state of one candidate/seed evaluation.",
+        "properties": {
+          "cache_key": {
+            "title": "Cache Key",
+            "type": "string"
+          },
+          "cancel_requested": {
+            "default": false,
+            "title": "Cancel Requested",
+            "type": "boolean"
+          },
+          "candidate_id": {
+            "title": "Candidate Id",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "result_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Digest"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus",
+            "default": "pending"
+          }
+        },
+        "required": [
+          "job_id",
+          "candidate_id",
+          "seed",
+          "cache_key"
+        ],
+        "title": "JobRecord",
+        "type": "object"
+      },
+      "JobSpec": {
+        "additionalProperties": false,
+        "description": "A containerized unit of work run identically by every backend.\n\n``image`` is the digest-pinned workload; ``command`` is the argv run inside it (or,\nfor the local backend, on the workstation directly). ``inputs`` maps a run-relative\nname to a content address staged from the store; ``outputs`` lists the run-relative\nfilenames captured back into the store. ``seed`` is exported as ``ASTRO_MINE_SEED``.",
+        "properties": {
+          "budget": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget"
+          },
+          "checkpoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckpointPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "command": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Command",
+            "type": "array"
+          },
+          "core_interface_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Core Interface Version"
+          },
+          "distributed": {
+            "default": false,
+            "title": "Distributed",
+            "type": "boolean"
+          },
+          "env": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Env",
+            "type": "object"
+          },
+          "image": {
+            "$ref": "#/components/schemas/ImageRef"
+          },
+          "inputs": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Inputs",
+            "type": "object"
+          },
+          "outputs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Outputs",
+            "type": "array"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "resource_request": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResourceRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resources": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Resources",
+            "type": "object"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "tenant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenant"
+          }
+        },
+        "required": [
+          "image"
+        ],
+        "title": "JobSpec",
+        "type": "object"
+      },
+      "JobStatus": {
+        "enum": [
+          "pending",
+          "running",
+          "succeeded",
+          "failed",
+          "canceled"
+        ],
+        "title": "JobStatus",
+        "type": "string"
+      },
+      "LeaderboardEntry": {
+        "additionalProperties": false,
+        "description": "One ranked row of a scenario leaderboard, ordered by the scenario's primary metric.",
+        "properties": {
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "integrity": {
+            "enum": [
+              "verified",
+              "flagged"
+            ],
+            "title": "Integrity",
+            "type": "string"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "primary_metric": {
+            "title": "Primary Metric",
+            "type": "string"
+          },
+          "primary_unit": {
+            "title": "Primary Unit",
+            "type": "string"
+          },
+          "primary_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Value"
+          },
+          "provenance_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provenance Hash"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "submission_id": {
+            "title": "Submission Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rank",
+          "submission_id",
+          "method",
+          "author",
+          "integrity",
+          "primary_metric",
+          "primary_value",
+          "primary_unit"
+        ],
+        "title": "LeaderboardEntry",
+        "type": "object"
+      },
+      "MenuEntry": {
+        "additionalProperties": false,
+        "description": "One selectable robot-menu row: an asset's identity + the Core capability tags it declares.\n\nProjected from the Hub-indexed Core plugin manifest, so a Hub-published asset yields a row with\nno Studio edit. ``kind`` is the **vehicle** kind the menu groups by (rover/orbiter/\u2026), carried\non the manifest as ``attributes[\"asset_kind\"]`` \u2014 never the plugin kind (always ``asset``).\n``capability_tags`` are the Core-vocabulary strings; ``digest`` is the content address a preview\npulls by.",
+        "properties": {
+          "capability_tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capability Tags",
+            "type": "array"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "namespace": {
+            "title": "Namespace",
+            "type": "string"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference",
+          "digest",
+          "name",
+          "version",
+          "kind",
+          "namespace",
+          "capability_tags"
+        ],
+        "title": "MenuEntry",
+        "type": "object"
+      },
+      "MetricAggregation": {
+        "description": "How a metric's per-seed / per-episode values combine into one score\n(bench.md \u00a73; scenario \u00a713). Deterministic and content-addressed so a design-time\nscore and an operational reading of the same objective are comparable (LUNAR-TR-006).",
+        "enum": [
+          "mean",
+          "median",
+          "min",
+          "max",
+          "sum",
+          "p05",
+          "p95"
+        ],
+        "title": "MetricAggregation",
+        "type": "string"
+      },
+      "MetricBinding": {
+        "additionalProperties": false,
+        "description": "The objective->metric binding \u2014 the load-bearing contract.\n\nBinds one success criterion to a Bench metric with an explicit, quantitative\ntarget and tolerance (acceptance: \"binds each success criterion to a Bench metric\nwith target + tolerance\"). ``metric`` is the Bench metric key (resolved by Bench,\nnot Core \u2014 Core owns the binding shape, not the metric registry).",
+        "properties": {
+          "aggregation": {
+            "$ref": "#/components/schemas/MetricAggregation",
+            "default": "mean"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/MetricDirection"
+          },
+          "evaluation_window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvaluationWindow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "number"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold"
+          },
+          "tolerance": {
+            "minimum": 0.0,
+            "title": "Tolerance",
+            "type": "number"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric",
+          "unit",
+          "direction",
+          "target",
+          "tolerance"
+        ],
+        "title": "MetricBinding",
+        "type": "object"
+      },
+      "MetricDirection": {
+        "description": "Whether a higher or lower metric value is better (scenario \u00a713 scoring).",
+        "enum": [
+          "higher_better",
+          "lower_better"
+        ],
+        "title": "MetricDirection",
+        "type": "string"
+      },
+      "MetricEstimate": {
+        "additionalProperties": false,
+        "description": "One metric's score, and how well it is known.\n\n``uncertainty`` is ``None`` when the evaluation recorded no dispersion for this metric \u2014 a\ndifferent statement from ``0.0``, and the UI must not conflate them.",
+        "properties": {
+          "uncertainty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uncertainty"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "title": "MetricEstimate",
+        "type": "object"
+      },
+      "MetricScore": {
+        "additionalProperties": false,
+        "description": "One metric's aggregate on the held-out seeds \u2014 the transparent, per-metric record.",
+        "properties": {
+          "aggregation": {
+            "title": "Aggregation",
+            "type": "string"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "dispersion": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dispersion"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "metric",
+          "unit",
+          "direction",
+          "aggregation",
+          "value",
+          "dispersion",
+          "n"
+        ],
+        "title": "MetricScore",
+        "type": "object"
+      },
+      "MetricVocabulary": {
+        "additionalProperties": false,
+        "description": "The declared metric vocabulary an objective's bindings are checked against.\n\n``metrics`` maps a Bench metric key to its expected SI unit; an empty string means\nthe unit is unconstrained by the vocabulary. Built from a Bench ``metric`` plugin\nmanifest (``from_manifest``) in production, or directly in tests/local use.",
+        "properties": {
+          "metrics": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Metrics",
+            "type": "object"
+          }
+        },
+        "required": [
+          "metrics"
+        ],
+        "title": "MetricVocabulary",
+        "type": "object"
+      },
+      "ObjectiveDocument": {
+        "additionalProperties": false,
+        "description": "Top-level objective document. ``objective_version`` pins the schema minor.",
+        "properties": {
+          "objective": {
+            "$ref": "#/components/schemas/ObjectiveSpec"
+          },
+          "objective_version": {
+            "const": "0.1",
+            "title": "Objective Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "objective_version",
+          "objective"
+        ],
+        "title": "ObjectiveDocument",
+        "type": "object"
+      },
+      "ObjectiveSpec": {
+        "additionalProperties": false,
+        "description": "An objective: an identity plus its measurable success criteria.\n\nAuthored by Studio (optionally via human-reviewed LLM intent capture) and\nconsumed by Bench/Ledger/Ops/View (core.md \u00a73). ``scenario_ref`` is an optional\ncontent reference to the ScenarioSpec the objective is stated against.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Provenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scenario_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Ref"
+          },
+          "success_criteria": {
+            "items": {
+              "$ref": "#/components/schemas/SuccessCriterion"
+            },
+            "minItems": 1,
+            "title": "Success Criteria",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "success_criteria"
+        ],
+        "title": "ObjectiveSpec",
+        "type": "object"
+      },
+      "PlanetaryCRS": {
+        "additionalProperties": false,
+        "description": "An explicit planetary coordinate reference system.\n\nThe minimum needed to reproject spatial data without guessing: the ``body``, its\nbody-fixed ``body_fixed_frame``, and the PROJ planetary reference radius\n``reference_radius_m`` (the PROJ ``+R``; the Moon is modelled as a sphere,\nR \u2248 1_737_400 m \u2014 ellipsoid ``+a``/``+b`` is deferred). ``projection`` carries an\nexplicit PROJ/WKT/EPSG string for a *projected* CRS (e.g. lunar polar stereographic\nfor the Shackleton DEM); ``None`` means body-fixed geographic (lat/lon on the\ndatum). No field defaults to an Earth/WGS84 value \u2014 a CRS is explicit or it is\nrejected (RM-P0-WORLDS-01; conventions.md \u00a75).",
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "body_fixed_frame": {
+            "title": "Body Fixed Frame",
+            "type": "string"
+          },
+          "datum": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Datum"
+          },
+          "projection": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projection"
+          },
+          "reference_radius_m": {
+            "exclusiveMinimum": 0.0,
+            "title": "Reference Radius M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "body",
+          "body_fixed_frame",
+          "reference_radius_m"
+        ],
+        "title": "PlanetaryCRS",
+        "type": "object"
+      },
+      "Provenance": {
+        "additionalProperties": false,
+        "description": "Reproducibility provenance (conventions.md \u00a75). Objectives are content-addressed\nso a design-time score and an operational reading reproduce (LUNAR-TR-006).",
+        "properties": {
+          "code_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Version"
+          },
+          "env_lockfile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Env Lockfile"
+          },
+          "input_hashes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Input Hashes",
+            "type": "array"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "toolchain_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toolchain Version"
+          }
+        },
+        "title": "Provenance",
+        "type": "object"
+      },
+      "ProvenanceBundle": {
+        "additionalProperties": false,
+        "description": "Full lineage for a leaderboard entry, content-addressed and re-executable (bench.md \u00a75).\n\n:attr:`bundle_hash` is a deterministic ``sha256:`` over the reproducible fields only \u2014 the\n:class:`~astro_mine.bench.harness.EnvironmentStamp` is recorded for audit but excluded, so the\nsame inputs reproduce the identical hash on any machine.",
+        "properties": {
+          "code_version": {
+            "title": "Code Version",
+            "type": "string"
+          },
+          "content_hashes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Content Hashes",
+            "type": "object"
+          },
+          "core_interface_version": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Core Interface Version",
+            "type": "object"
+          },
+          "core_schema_digest": {
+            "title": "Core Schema Digest",
+            "type": "string"
+          },
+          "environment": {
+            "$ref": "#/components/schemas/EnvironmentStamp"
+          },
+          "environment_lockfile": {
+            "title": "Environment Lockfile",
+            "type": "string"
+          },
+          "per_seed": {
+            "items": {
+              "$ref": "#/components/schemas/SeedRecord"
+            },
+            "minItems": 1,
+            "title": "Per Seed",
+            "type": "array"
+          },
+          "scenario_id": {
+            "minLength": 1,
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "scenario_spec_hash": {
+            "title": "Scenario Spec Hash",
+            "type": "string"
+          },
+          "scorecard_hash": {
+            "title": "Scorecard Hash",
+            "type": "string"
+          },
+          "seeds": {
+            "items": {
+              "type": "integer"
+            },
+            "minItems": 1,
+            "title": "Seeds",
+            "type": "array"
+          },
+          "source": {
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "source_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Digest"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "scenario_spec_hash",
+          "core_interface_version",
+          "core_schema_digest",
+          "content_hashes",
+          "source",
+          "code_version",
+          "environment_lockfile",
+          "scorecard_hash",
+          "seeds",
+          "per_seed",
+          "environment"
+        ],
+        "title": "ProvenanceBundle",
+        "type": "object"
+      },
+      "PublishBody": {
+        "description": "Index a Core plugin manifest for an already-stored artifact.",
+        "properties": {
+          "digest": {
+            "minLength": 1,
+            "title": "Digest",
+            "type": "string"
+          },
+          "manifest": {
+            "additionalProperties": true,
+            "title": "Manifest",
+            "type": "object"
+          },
+          "namespace": {
+            "default": "open",
+            "title": "Namespace",
+            "type": "string"
+          },
+          "publisher": {
+            "minLength": 1,
+            "title": "Publisher",
+            "type": "string"
+          }
+        },
+        "required": [
+          "manifest",
+          "digest",
+          "publisher"
+        ],
+        "title": "PublishBody",
+        "type": "object"
+      },
+      "PublishCampaignRequest": {
+        "additionalProperties": false,
+        "description": "Publish a campaign. Provide a fully-formed ``campaign``, **or** the authoring-journey form \u2014\na ``chosen`` evaluated candidate + its ``objective`` (+ optional ``phases``) \u2014 which the route\nauthors into a ``Campaign`` server-side (proper lineage via :func:`author_campaign`) before\nfreezing and publishing. Either shape, one route, zero new endpoints.",
+        "properties": {
+          "campaign": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Campaign"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "chosen": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvaluatedCandidate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "objective": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectiveDocument"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phases": {
+            "items": {
+              "$ref": "#/components/schemas/CampaignPhase"
+            },
+            "title": "Phases",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
+          "world_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "World Ref"
+          }
+        },
+        "required": [
+          "name",
+          "version"
+        ],
+        "title": "PublishCampaignRequest",
+        "type": "object"
+      },
+      "PublishedArtifactRef": {
+        "additionalProperties": false,
+        "description": "Where a published artifact lives, and what it is.\n\n``digest`` is the OCI image-manifest digest \u2014 the artifact's identity in Hub, and the handle a\nconsumer (Ops, a colleague) pulls it back by. ``content_digest`` is the hash of the *payload*\nbytes, i.e. the frozen bundle's own content address. They differ because the former also covers\nthe manifest and the layer descriptors.",
+        "properties": {
+          "content_digest": {
+            "title": "Content Digest",
+            "type": "string"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference",
+          "digest",
+          "content_digest",
+          "kind"
+        ],
+        "title": "PublishedArtifactRef",
+        "type": "object"
+      },
+      "ResolveBody": {
+        "description": "A resolution constraint set.",
+        "properties": {
+          "capability_tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capability Tags",
+            "type": "array"
+          },
+          "interfaces": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interfaces"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "version_spec": {
+            "default": "",
+            "title": "Version Spec",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ResolveBody",
+        "type": "object"
+      },
+      "ResolveResult": {
+        "description": "The one immutable artifact a name and version spec resolve to.",
+        "properties": {
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference",
+          "digest",
+          "version"
+        ],
+        "title": "ResolveResult",
+        "type": "object"
+      },
+      "ResourceRequest": {
+        "additionalProperties": false,
+        "description": "A pod's compute request: CPU / memory / whole GPUs or a MIG slice.\n\nCompiles to a Kubernetes ``resources`` block via :meth:`to_k8s_resources`. A **MIG\nslice** (``mig_profile``) and **whole GPUs** (``gpu``) are mutually exclusive -- a job\nthat fits on a 10 GB slice must not also strand a whole card (``cloud.md`` \u00a77, \u00a78). GPU\nresources are extended resources, so requests are pinned equal to limits.",
+        "properties": {
+          "cpu": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpu"
+          },
+          "gpu": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Gpu",
+            "type": "integer"
+          },
+          "memory": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory"
+          },
+          "mig_profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mig Profile"
+          }
+        },
+        "title": "ResourceRequest",
+        "type": "object"
+      },
+      "RunContext": {
+        "additionalProperties": false,
+        "description": "The reproducibility envelope attached to a run.\n\n``source_content_hashes``, ``code_version``, ``env_lockfile`` and ``seed`` are the\n``conventions.md`` \u00a75 minimum; the remaining fields are reserved for downstream\nCloud work and default to empty/``None`` so populating them needs no schema bump.",
+        "properties": {
+          "code_version": {
+            "title": "Code Version",
+            "type": "string"
+          },
+          "core_interface_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Core Interface Version"
+          },
+          "env_lockfile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Env Lockfile"
+          },
+          "environment": {
+            "$ref": "#/components/schemas/EnvironmentFingerprint"
+          },
+          "image_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Digest"
+          },
+          "outputs": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Outputs",
+            "type": "object"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "schema_version": {
+            "const": "0.1",
+            "default": "0.1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "source_content_hashes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Source Content Hashes",
+            "type": "object"
+          }
+        },
+        "title": "RunContext",
+        "type": "object"
+      },
+      "RunResult": {
+        "additionalProperties": false,
+        "description": "The outcome of a :func:`~astro_mine.cloud.submission.submit` call.",
+        "properties": {
+          "exit_code": {
+            "title": "Exit Code",
+            "type": "integer"
+          },
+          "outputs": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Outputs",
+            "type": "object"
+          },
+          "run_context": {
+            "$ref": "#/components/schemas/RunContext"
+          },
+          "run_context_address": {
+            "title": "Run Context Address",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "succeeded",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "exit_code",
+          "run_context_address",
+          "run_context"
+        ],
+        "title": "RunResult",
+        "type": "object"
+      },
+      "SearchHit": {
+        "description": "One catalog entry as the API projects it \u2014 the shape ``_hit`` builds.\n\nThis is a *projection* of :class:`~astro_mine.hub.index.CatalogEntry`, not a copy of it: the\nroute already chose these twelve fields, and declaring them makes the choice legible to a\ngenerated client instead of leaving it as an untyped object the client types as ``unknown``.\nThe catalog record itself is not here \u2014 it is large, and only the detail route returns it.",
+        "properties": {
+          "artifact_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Kind"
+          },
+          "deprecated": {
+            "default": false,
+            "title": "Deprecated",
+            "type": "boolean"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "license": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "namespace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Namespace"
+          },
+          "publisher": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publisher"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
+          "yanked": {
+            "default": false,
+            "title": "Yanked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reference",
+          "digest",
+          "name",
+          "version",
+          "score"
+        ],
+        "title": "SearchHit",
+        "type": "object"
+      },
+      "SeedRecord": {
+        "additionalProperties": false,
+        "description": "One held-out seed's scored values \u2014 the unit the re-execution audit compares.",
+        "properties": {
+          "metrics": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Metrics",
+            "type": "object"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seed",
+          "metrics"
+        ],
+        "title": "SeedRecord",
+        "type": "object"
+      },
+      "StudyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/DesignCandidate"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "max_steps": {
+            "default": 8,
+            "title": "Max Steps",
+            "type": "integer"
+          },
+          "objective": {
+            "$ref": "#/components/schemas/ObjectiveDocument"
+          },
+          "seeds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Seeds",
+            "type": "array"
+          }
+        },
+        "required": [
+          "objective",
+          "candidates"
+        ],
+        "title": "StudyRequest",
+        "type": "object"
+      },
+      "StudyResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "jobs": {
+            "items": {
+              "$ref": "#/components/schemas/JobRecord"
+            },
+            "title": "Jobs",
+            "type": "array"
+          },
+          "study": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TradeStudy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "jobs"
+        ],
+        "title": "StudyResponse",
+        "type": "object"
+      },
+      "Submission": {
+        "additionalProperties": false,
+        "description": "A content-addressed leaderboard record: the held-out scorecard + its integrity verdict.\n\n``submission_id`` is the ``sha256:`` digest of ``(scenario_id, policy_ref, scorecard_hash)``,\nso re-submitting an identical policy is idempotent and a result is reproducible from its\nprovenance (conventions.md \u00a75). ``integrity`` is the sampled-re-execution verdict (bench.md \u00a79).",
+        "properties": {
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "integrity": {
+            "enum": [
+              "verified",
+              "flagged"
+            ],
+            "title": "Integrity",
+            "type": "string"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "policy_ref": {
+            "title": "Policy Ref",
+            "type": "string"
+          },
+          "provenance_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provenance Hash"
+          },
+          "runner": {
+            "title": "Runner",
+            "type": "string"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "scorecard_hash": {
+            "title": "Scorecard Hash",
+            "type": "string"
+          },
+          "scores": {
+            "items": {
+              "$ref": "#/components/schemas/MetricScore"
+            },
+            "title": "Scores",
+            "type": "array"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "submission_id": {
+            "title": "Submission Id",
+            "type": "string"
+          },
+          "trace_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Hash"
+          }
+        },
+        "required": [
+          "submission_id",
+          "scenario_id",
+          "policy_ref",
+          "method",
+          "author",
+          "scorecard_hash",
+          "runner",
+          "integrity",
+          "scores"
+        ],
+        "title": "Submission",
+        "type": "object"
+      },
+      "SubmissionRequest": {
+        "additionalProperties": false,
+        "description": "A leaderboard submission: which scenario, and the policy to run (submit-policy-we-run).\n\n``policy_ref`` is a ``\"module:attribute\"`` reference the server runs on the scenario's held-out\nseeds. It is **untrusted code**: since bench#30 the server does *not* import it \u2014 the reference\nis shape-checked at the edge and resolved (imported) only inside the sandboxed eval worker,\nout-of-process, with no network egress and hard CPU/memory/time caps (bench.md \u00a79). The caller\nmust present a valid OIDC bearer token (bench#29).",
+        "properties": {
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "policy_ref": {
+            "minLength": 1,
+            "title": "Policy Ref",
+            "type": "string"
+          },
+          "scenario_id": {
+            "minLength": 1,
+            "title": "Scenario Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "policy_ref"
+        ],
+        "title": "SubmissionRequest",
+        "type": "object"
+      },
+      "SubmissionStatus": {
+        "description": "The lifecycle of a hosted submission (bench.md \u00a77).\n\n``QUEUED`` accepted and awaiting a worker; ``RUNNING`` resolving + executing under\nsubmit-policy-we-run; ``SCORED`` scored on the held-out seeds; ``RANKED`` verified and placed\non the board; ``FLAGGED`` an integrity failure (provenance re-execution mismatch); ``REJECTED``\nnever ran (bad digest, manifest/interface mismatch, or a rate-limit refusal).",
+        "enum": [
+          "queued",
+          "running",
+          "scored",
+          "ranked",
+          "flagged",
+          "rejected"
+        ],
+        "title": "SubmissionStatus",
+        "type": "string"
+      },
+      "SuccessCriterion": {
+        "additionalProperties": false,
+        "description": "One measurable criterion of an objective, bound to a metric.\n\n``required`` distinguishes a must-meet criterion from a soft/stretch goal;\n``weight`` supports scalarization in Studio's multi-objective trade-study engine\n(scenario \u00a78.3, LUNAR-FR-010) \u2014 optimization lives above Core, this only carries\nthe weight. ``deadline_s`` is an optional achieve-by deadline in SI seconds of\nepisode/sim time (``sim_time_s`` elsewhere); mission-epoch-relative deadlines are\nthe Mission/Phase model's job (RFC-0001, reserved P1).",
+        "properties": {
+          "binding": {
+            "$ref": "#/components/schemas/MetricBinding"
+          },
+          "deadline_s": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline S"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "required": {
+            "default": true,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          }
+        },
+        "required": [
+          "id",
+          "binding"
+        ],
+        "title": "SuccessCriterion",
+        "type": "object"
+      },
+      "SweepExpansion": {
+        "description": "A sweep's deterministic expansion into concrete jobs.\n\nUnlike the three ``compile`` routes below, this shape belongs to Astro-Mine rather than to an\nexecution engine, so it is declared rather than left open.",
+        "properties": {
+          "jobs": {
+            "items": {
+              "$ref": "#/components/schemas/JobSpec"
+            },
+            "title": "Jobs",
+            "type": "array"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "size",
+          "jobs"
+        ],
+        "title": "SweepExpansion",
+        "type": "object"
+      },
+      "SweepSpec": {
+        "additionalProperties": false,
+        "description": "A base JobSpec plus a parameter space that expands to concrete JobSpecs.",
+        "properties": {
+          "base": {
+            "$ref": "#/components/schemas/JobSpec"
+          },
+          "grid": {
+            "additionalProperties": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "title": "Grid",
+            "type": "object"
+          },
+          "max_parallel": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Parallel"
+          },
+          "method": {
+            "default": "grid",
+            "enum": [
+              "grid",
+              "random",
+              "halton"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "ranges": {
+            "additionalProperties": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Ranges",
+            "type": "object"
+          },
+          "samples": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Samples"
+          },
+          "seed": {
+            "default": 0,
+            "title": "Seed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "base"
+        ],
+        "title": "SweepSpec",
+        "type": "object"
+      },
+      "TargetProduct": {
+        "additionalProperties": false,
+        "description": "A \"produce X of product at rate R\" objective \u2192 a soft, weighted success\ncriterion bound to a Bench metric with target + tolerance. ``rate_window_s`` set\nmeans a sustained-rate objective (\"10 t per lunar day\") \u2192 a rolling window.",
+        "properties": {
+          "criterion_id": {
+            "title": "Criterion Id",
+            "type": "string"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/MetricDirection",
+            "default": "higher_better"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "rate_window_s": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate Window S"
+          },
+          "target": {
+            "title": "Target",
+            "type": "number"
+          },
+          "tolerance": {
+            "minimum": 0.0,
+            "title": "Tolerance",
+            "type": "number"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          }
+        },
+        "required": [
+          "criterion_id",
+          "metric",
+          "unit",
+          "target",
+          "tolerance"
+        ],
+        "title": "TargetProduct",
+        "type": "object"
+      },
+      "TradeStudy": {
+        "additionalProperties": false,
+        "description": "A reproducible design-space exploration: the evaluated candidates and the\nPareto-ranked front they yield, plus the provenance to reproduce the front exactly\n(studio.md \u00a73 ``TradeStudy``).",
+        "properties": {
+          "backend": {
+            "title": "Backend",
+            "type": "string"
+          },
+          "evaluated": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluatedCandidate"
+            },
+            "title": "Evaluated",
+            "type": "array"
+          },
+          "evaluator": {
+            "title": "Evaluator",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "objective_hash": {
+            "title": "Objective Hash",
+            "type": "string"
+          },
+          "pareto_front": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pareto Front",
+            "type": "array"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/ArtifactProvenance"
+          },
+          "seeds": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Seeds",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "objective_hash",
+          "backend",
+          "evaluator",
+          "seeds",
+          "evaluated",
+          "pareto_front",
+          "provenance"
+        ],
+        "title": "TradeStudy",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "ViewLeaderboard": {
+        "additionalProperties": false,
+        "description": "A scenario's leaderboard as View consumes it: the primary metric + full-metric rows.",
+        "properties": {
+          "primary_metric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Metric"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ViewLeaderboardRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "primary_metric",
+          "rows"
+        ],
+        "title": "ViewLeaderboard",
+        "type": "object"
+      },
+      "ViewLeaderboardRow": {
+        "additionalProperties": false,
+        "description": "One ranked row carrying its **full** per-metric scorecard \u2014 the shape View renders.\n\nUnlike :class:`~astro_mine.bench.leaderboard.LeaderboardEntry` (primary metric only), ``scores``\nholds every scored metric with its ``value``, ``direction``, and ``dispersion`` (the cross-seed\nuncertainty View shows as a bound). ``trace_hash`` is the stored MCAP replay's digest (``None``\nwhen no replay is attached), so View knows whether an episode replay is available.\n\n``runner`` is the identity of the runner that produced the scorecard (``\"fixture/0.1.0\"`` for\nthe reference fixture, else a Sim runner's id). View **must** render it in the ranking row: a\nfixture-scored entry has to *look* fixture-scored, not merely carry a footnote (G1.1's lesson\napplied to pixels \u2014 gap report \u00a78.2.6). Surfacing it here is what lets a leaderboard tell a\nsimulated result from a fixture one by provenance rather than by value (G1.8).",
+        "properties": {
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "integrity": {
+            "enum": [
+              "verified",
+              "flagged"
+            ],
+            "title": "Integrity",
+            "type": "string"
+          },
+          "method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
+          "provenance_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provenance Hash"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "runner": {
+            "title": "Runner",
+            "type": "string"
+          },
+          "scores": {
+            "items": {
+              "$ref": "#/components/schemas/MetricScore"
+            },
+            "title": "Scores",
+            "type": "array"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "submission_id": {
+            "title": "Submission Id",
+            "type": "string"
+          },
+          "trace_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Hash"
+          }
+        },
+        "required": [
+          "rank",
+          "submission_id",
+          "method",
+          "author",
+          "integrity",
+          "runner",
+          "source",
+          "provenance_hash",
+          "trace_hash",
+          "scores"
+        ],
+        "title": "ViewLeaderboardRow",
+        "type": "object"
+      },
+      "ViewReplay": {
+        "additionalProperties": false,
+        "description": "A decoded replay manifest for a Sim MCAP episode \u2014 the metadata View needs to render it.\n\n``mcap_digest``/``size_bytes`` address the replay payload (the MCAP bytes View plays);\n``frame_count`` is the number of distinct sim ticks, ``observation_count`` the per-agent\nobservations flattened across them; ``agents`` the distinct agents; ``sim_time_start_s`` /\n``sim_time_end_s`` the episode's sim-time span. ``seed`` + ``content_hash`` come from the\nrecording's provenance envelope, tying the replay back to its scored run.",
+        "properties": {
+          "agents": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Agents",
+            "type": "array"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "frame_count": {
+            "title": "Frame Count",
+            "type": "integer"
+          },
+          "mcap_digest": {
+            "title": "Mcap Digest",
+            "type": "string"
+          },
+          "observation_count": {
+            "title": "Observation Count",
+            "type": "integer"
+          },
+          "scenario_id": {
+            "title": "Scenario Id",
+            "type": "string"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "sim_time_end_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sim Time End S"
+          },
+          "sim_time_start_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sim Time Start S"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "submission_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submission Id"
+          }
+        },
+        "required": [
+          "scenario_id",
+          "submission_id",
+          "mcap_digest",
+          "size_bytes",
+          "frame_count",
+          "observation_count",
+          "agents",
+          "sim_time_start_s",
+          "sim_time_end_s",
+          "seed",
+          "content_hash"
+        ],
+        "title": "ViewReplay",
+        "type": "object"
+      },
+      "WindowKind": {
+        "description": "How a metric binding is evaluated over time (the ``evaluation_window`` kind).\n\n- ``cumulative`` \u2014 over the whole episode/campaign (the default if no window is set);\n- ``rolling`` \u2014 over a rolling window of ``duration_s`` (rate / sustained objectives,\n  e.g. \"10 t per lunar day\");\n- ``per_phase`` \u2014 once per mission Phase (meaningful only for multi-phase Missions;\n  RFC-0001, reserved P1).\n\nA ``rolling`` window requires ``duration_s``; ``cumulative``/``per_phase`` forbid it\n(enforced in the loader).",
+        "enum": [
+          "cumulative",
+          "rolling",
+          "per_phase"
+        ],
+        "title": "WindowKind",
+        "type": "string"
+      },
+      "WorkflowSpec": {
+        "additionalProperties": false,
+        "description": "A DAG of JobSpecs -- validated acyclic, with a deterministic topological order.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowStep"
+            },
+            "minItems": 1,
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "steps"
+        ],
+        "title": "WorkflowSpec",
+        "type": "object"
+      },
+      "WorkflowStep": {
+        "additionalProperties": false,
+        "description": "One node in a :class:`WorkflowSpec`: a named JobSpec and its upstream dependencies.",
+        "properties": {
+          "depends_on": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Depends On",
+            "type": "array"
+          },
+          "job": {
+            "$ref": "#/components/schemas/JobSpec"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "job"
+        ],
+        "title": "WorkflowStep",
+        "type": "object"
+      },
+      "WorldEntry": {
+        "additionalProperties": false,
+        "description": "One selectable world-menu row: a published world bundle's identity and the body it models.\n\nThe counterpart of :class:`MenuEntry` for ``PluginKind.WORLD_PROVIDER`` artifacts. Terrain used\nto be reachable only by hand-editing a ``?world=`` query parameter, which no part of the UI\noffered or documented, so ``UC-F5`` had no front door at all.\n\n``body`` is carried on the manifest as ``attributes[\"body\"]`` where the producer stamps it; it\nlets a surface narrow the menu to worlds applicable to a study's own ``GeoRegion``.",
+        "properties": {
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "namespace": {
+            "title": "Namespace",
+            "type": "string"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference",
+          "digest",
+          "name",
+          "version",
+          "namespace"
+        ],
+        "title": "WorldEntry",
+        "type": "object"
+      },
+      "WorldResponse": {
+        "additionalProperties": false,
+        "description": "A world Studio pulled from Hub by digest and is now serving to the embedded View.",
+        "properties": {
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "manifest_url": {
+            "title": "Manifest Url",
+            "type": "string"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "site": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorldSite"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "world_id": {
+            "title": "World Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference",
+          "digest",
+          "world_id",
+          "manifest_url"
+        ],
+        "title": "WorldResponse",
+        "type": "object"
+      },
+      "WorldSite": {
+        "additionalProperties": false,
+        "description": "Where on a world a design-time swarm is laid out: the bundle's own tileset anchor.\n\nRead straight out of the verified bundle's ``world.json`` (``crs`` + ``tiles_anchor``), never\nchosen by Studio \u2014 a design has no run, so it has no simulated poses, and inventing coordinates\nsilently is exactly what `studio.md` \u00a72 principle 7 forbids. The anchor is the one position in a\nworld bundle that means \"here is where this terrain is\", so a layout centred on it is the one\nconvention that needs no new authored input (studio#50).\n\n``None`` on the response when the bundle predates the published anchor: the swarm then cannot be\nplaced, and the surface says so rather than guessing.",
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "frame": {
+            "title": "Frame",
+            "type": "string"
+          },
+          "height_m": {
+            "title": "Height M",
+            "type": "number"
+          },
+          "latitude_deg": {
+            "title": "Latitude Deg",
+            "type": "number"
+          },
+          "longitude_deg": {
+            "title": "Longitude Deg",
+            "type": "number"
+          },
+          "reference_radius_m": {
+            "title": "Reference Radius M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "body",
+          "frame",
+          "reference_radius_m",
+          "latitude_deg",
+          "longitude_deg",
+          "height_m"
+        ],
+        "title": "WorldSite",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "summary": "The Astro-Mine REST tier: the Hub registry API, the Studio API, Cloud's submission edge and the Bench leaderboard, behind one deployable.",
+    "title": "Astro-Mine-API",
+    "version": "<version>"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/bench/audit": {
+      "get": {
+        "description": "Query the authN/authZ + verification audit trail \u2014 ``audit:read``, admin-only (bench#29).\n\nThe queryable half of \"disputes are auditable\" (bench.md \u00a79): filter by who, what, and the\noutcome, newest first.",
+        "operationId": "bench_audit_trail",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "subject",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subject"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "in": "query",
+            "name": "decision",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AuditDecision"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Decision"
+            }
+          },
+          {
+            "in": "query",
+            "name": "resource",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Resource"
+            }
+          },
+          {
+            "in": "query",
+            "name": "submission_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Submission Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEvent"
+                  },
+                  "title": "Response Bench Audit Trail",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Audit Trail",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/bench/healthz": {
+      "get": {
+        "operationId": "bench_healthz",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Bench Healthz",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Healthz",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/bench/jobs/{job_id}": {
+      "get": {
+        "operationId": "bench_get_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenchJobRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Job",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/bench/leaderboard/{scenario_id}": {
+      "get": {
+        "operationId": "bench_leaderboard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LeaderboardEntry"
+                  },
+                  "title": "Response Bench Leaderboard",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Leaderboard",
+        "tags": [
+          "leaderboard"
+        ]
+      }
+    },
+    "/bench/leaderboard/{scenario_id}/scorecards": {
+      "get": {
+        "description": "The full per-metric leaderboard dataset View renders (bench.md \u00a76; RM-P1-BENCH-12).\n\nSame ranking as ``/bench/leaderboard/{scenario_id}`` but every row carries its complete\nscorecard with per-metric uncertainty, so View shows scorecards and bounds, not just the\nprimary.",
+        "operationId": "bench_leaderboard_scorecards",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario_id",
+            "required": true,
+            "schema": {
+              "title": "Scenario Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ViewLeaderboard"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Scorecards",
+        "tags": [
+          "leaderboard"
+        ]
+      }
+    },
+    "/bench/metrics": {
+      "get": {
+        "description": "Prometheus exposition for the submission pipeline (bench.md \u00a710; bench#32).\n\nQueue depth, re-execution mismatch rate (the key integrity signal), evaluation latency,\nauthorization decisions, supply-chain verifications, and sandbox terminations. Left\nunauthenticated so a Prometheus scraper needs no account \u2014 the deployment restricts it at\nthe network layer, as is conventional.",
+        "operationId": "bench_prometheus_metrics",
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Prometheus exposition format."
+          }
+        },
+        "summary": "Prometheus Metrics",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/bench/scenarios": {
+      "get": {
+        "description": "The scenario ids in the zoo \u2014 account-free, like every read path.",
+        "operationId": "bench_list_scenarios",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response Bench List Scenarios",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Scenarios",
+        "tags": [
+          "scenarios"
+        ]
+      },
+      "post": {
+        "description": "Publish a ScenarioSpec into the hosted catalog \u2014 ``scenario:author`` (bench#29).\n\nThe write surface of the Postgres/pgvector zoo catalog (bench#33): only a maintainer or an\nadmin may add to the commons' benchmark catalog, and the act is audit-logged. Returns 503 on\na deployment whose catalog is the read-only packaged filesystem zoo.",
+        "operationId": "bench_author_scenario",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Spec",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Bench Author Scenario",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Author Scenario",
+        "tags": [
+          "scenarios"
+        ]
+      }
+    },
+    "/bench/submissions": {
+      "post": {
+        "description": "Submit an importable ``policy_ref``; it runs **in a sandbox**, never in-process.",
+        "operationId": "bench_submit",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Submission"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit",
+        "tags": [
+          "submissions"
+        ]
+      }
+    },
+    "/bench/submissions/hub": {
+      "post": {
+        "description": "Submit a community artifact by Hub digest; verified (cosign/SLSA/SBOM) then sandboxed.",
+        "operationId": "bench_submit_hub",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HubSubmissionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenchJobRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Hub",
+        "tags": [
+          "submissions"
+        ]
+      }
+    },
+    "/bench/submissions/{submission_id}": {
+      "delete": {
+        "description": "Retract an entry from the board \u2014 ``ranking:mutate``, admin-only, audit-logged.",
+        "operationId": "bench_retract_submission",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "title": "Submission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Submission"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retract Submission",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "operationId": "bench_get_submission",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Submission"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Submission",
+        "tags": [
+          "submissions"
+        ]
+      }
+    },
+    "/bench/submissions/{submission_id}/provenance": {
+      "get": {
+        "operationId": "bench_get_provenance",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvenanceBundle"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Provenance",
+        "tags": [
+          "leaderboard"
+        ]
+      }
+    },
+    "/bench/submissions/{submission_id}/replay": {
+      "get": {
+        "description": "The MCAP episode replay bytes View plays (``application/octet-stream``), 404 if none.\n\nBench provides the MCAP replays; View renders them (bench.md \u00a76). A replay is present only\nwhen one was attached to the entry (``LeaderboardService.attach_replay``).",
+        "operationId": "bench_get_replay",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The MCAP episode log."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Replay",
+        "tags": [
+          "leaderboard"
+        ]
+      }
+    },
+    "/bench/submissions/{submission_id}/replay/manifest": {
+      "get": {
+        "description": "The decoded replay manifest (frames, agents, sim-time span); 404 if no replay.",
+        "operationId": "bench_get_replay_manifest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ViewReplay"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Replay Manifest",
+        "tags": [
+          "leaderboard"
+        ]
+      }
+    },
+    "/cloud/backends": {
+      "get": {
+        "operationId": "cloud_backends",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "title": "Response Cloud Backends",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Backends"
+      }
+    },
+    "/cloud/healthz": {
+      "get": {
+        "operationId": "cloud_healthz",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Cloud Healthz",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Healthz"
+      }
+    },
+    "/cloud/jobs": {
+      "post": {
+        "description": "Submit a JobSpec through *backend* -- the same call site as the CLI/library.",
+        "operationId": "cloud_submit_job",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "backend",
+            "required": false,
+            "schema": {
+              "default": "local",
+              "title": "Backend",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Job"
+      }
+    },
+    "/cloud/jobs/compile": {
+      "post": {
+        "description": "Compile a JobSpec to its engine manifest (auto-routed unless *engine* is given).\n\n**Deliberately an open object.** The response is an execution engine's own manifest \u2014 an\nArgo ``Workflow`` or a Kubernetes ``Job`` \u2014 whose schema belongs to that engine and changes\nwith it. Declaring a closed model here would either be a lie the first time an engine added\na field, or a second copy of someone else's API that this repository would have to chase.\nA client that needs to read one of these knows which engine it asked for.",
+        "operationId": "cloud_compile_job",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "namespace",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Namespace",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "engine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Engine"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Cloud Compile Job",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compile Job"
+      }
+    },
+    "/cloud/sweeps/compile": {
+      "post": {
+        "description": "Compile a SweepSpec to its Argo fan-out Workflow.\n\nAn open object for the same reason as ``compile_job`` above: this is Argo's schema.",
+        "operationId": "cloud_compile_sweep",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "namespace",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Namespace",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SweepSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Cloud Compile Sweep",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compile Sweep Endpoint"
+      }
+    },
+    "/cloud/sweeps/expand": {
+      "post": {
+        "description": "Preview a SweepSpec's deterministic expansion into concrete jobs.",
+        "operationId": "cloud_expand_sweep",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SweepSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SweepExpansion"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Expand Sweep"
+      }
+    },
+    "/cloud/workflows/compile": {
+      "post": {
+        "description": "Compile a WorkflowSpec to its Argo DAG Workflow.\n\nAn open object for the same reason as ``compile_job`` above: this is Argo's schema.",
+        "operationId": "cloud_compile_workflow",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "namespace",
+            "required": false,
+            "schema": {
+              "default": "default",
+              "title": "Namespace",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Cloud Compile Workflow",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compile Workflow Endpoint"
+      }
+    },
+    "/healthz": {
+      "get": {
+        "description": "Liveness for the deployment as a whole, naming what it serves.\n\nEach surface keeps its own health endpoint under its own prefix \u2014 this one answers \"is\nthis process up, and which surfaces did it mount?\", which is the question a load balancer\nin front of a multi-surface deployment actually asks.",
+        "operationId": "healthz",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentHealth"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Healthz",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/hub/artifacts/{name}/{version}": {
+      "get": {
+        "operationId": "hub_get_artifact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Artifact"
+      }
+    },
+    "/hub/artifacts/{name}/{version}/download": {
+      "post": {
+        "operationId": "hub_download",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DownloadBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadGrant"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download"
+      }
+    },
+    "/hub/health": {
+      "get": {
+        "operationId": "hub_health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Hub Health",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/hub/publish": {
+      "post": {
+        "description": "Index an already-stored artifact \u2014 after proving the caller's claims about it.\n\nEvery field in the body is a *claim*: the digest, the manifest, and the namespace. This\nendpoint used to take all three on the caller's word, which let a request forge content\nprovenance rather than merely omit it. Admission now re-derives each from the registry\n(hub.md \u00a72.3), and a caller-asserted trust tier above ``open`` is refused outright \u2014\npromotion is a curated, audited action (hub.md \u00a79), never a field in a publish request.",
+        "operationId": "hub_publish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchHit"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish"
+      }
+    },
+    "/hub/resolve": {
+      "post": {
+        "operationId": "hub_resolve",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolveResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Do Resolve"
+      }
+    },
+    "/hub/search": {
+      "get": {
+        "operationId": "hub_search",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "text",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Text"
+            }
+          },
+          {
+            "in": "query",
+            "name": "semantic",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semantic"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artifact_kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artifact Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "license",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "License"
+            }
+          },
+          {
+            "in": "query",
+            "name": "namespace",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Namespace"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SearchHit"
+                  },
+                  "title": "Response Hub Search",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Do Search"
+      }
+    },
+    "/studio/campaigns/publish": {
+      "post": {
+        "description": "Freeze and publish a campaign to Hub as a signed, content-addressed artifact.",
+        "operationId": "studio_publish_campaign",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishCampaignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishedArtifactRef"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish Campaign"
+      }
+    },
+    "/studio/campaigns/{reference}": {
+      "get": {
+        "description": "Pull a published campaign back by reference or digest, re-verified before trusted.",
+        "operationId": "studio_pull_campaign",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reference",
+            "required": true,
+            "schema": {
+              "title": "Reference",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Campaign"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pull Campaign"
+      }
+    },
+    "/studio/catalog/assets": {
+      "get": {
+        "description": "The robot menu: the Hub asset catalog, optionally filtered by capability tag.",
+        "operationId": "studio_list_catalog",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "requires",
+            "required": false,
+            "schema": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "title": "Requires",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MenuEntry"
+                  },
+                  "title": "Response Studio List Catalog",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Catalog"
+      }
+    },
+    "/studio/catalog/preview/{reference}": {
+      "get": {
+        "description": "Materialize a selected asset's geometry from Hub by digest; hand View a URL to fetch.",
+        "operationId": "studio_preview_asset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reference",
+            "required": true,
+            "schema": {
+              "title": "Reference",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetPreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Asset"
+      }
+    },
+    "/studio/catalog/worlds": {
+      "get": {
+        "description": "The world menu: the world bundles present in the configured registry.\n\n`GET /studio/worlds/{reference}` already materializes whichever of these is chosen \u2014 only\nthe front door was missing, so terrain was reachable solely by hand-editing `?world=`.",
+        "operationId": "studio_list_worlds",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorldEntry"
+                  },
+                  "title": "Response Studio List Worlds",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Worlds"
+      }
+    },
+    "/studio/healthz": {
+      "get": {
+        "operationId": "studio_healthz",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Studio Healthz",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Healthz"
+      }
+    },
+    "/studio/intent": {
+      "post": {
+        "operationId": "studio_capture_intent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptureRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapturedObjective"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Capture"
+      }
+    },
+    "/studio/studies": {
+      "post": {
+        "operationId": "studio_run_study",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Study"
+      }
+    },
+    "/studio/studies/comparison": {
+      "post": {
+        "description": "The Pareto front with per-metric uncertainty \u2014 bounds, not bare point estimates.",
+        "operationId": "studio_comparison",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TradeStudy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Comparison"
+      }
+    },
+    "/studio/worlds/{reference}": {
+      "get": {
+        "description": "Materialize a Worlds bundle from Hub by digest, and hand View the URL to fetch.",
+        "operationId": "studio_resolve_world",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reference",
+            "required": true,
+            "schema": {
+              "title": "Reference",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve World"
+      }
+    }
+  }
+}

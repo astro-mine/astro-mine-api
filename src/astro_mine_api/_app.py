@@ -28,6 +28,7 @@ from fastapi import FastAPI
 
 from astro_mine_api import __version__
 from astro_mine_api._cors import add_cors
+from astro_mine_api._ids import unique_operation_id
 
 __all__ = [
     "SURFACES",
@@ -80,6 +81,7 @@ def build_app(surfaces: Iterable[str] | None = None) -> FastAPI:
         version=__version__,
         summary="The Astro-Mine REST tier: the Hub registry API, the Studio API, Cloud's "
         "submission edge and the Bench leaderboard, behind one deployable.",
+        generate_unique_id_function=unique_operation_id,
     )
     # The front end is a static export, so the browser calls this API from another origin
     # (_cors.py). Installed before the routes so every surface this deployment mounts is covered

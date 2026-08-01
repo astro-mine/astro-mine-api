@@ -40,6 +40,7 @@ from fastapi import APIRouter, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from astro_mine_api._cors import add_cors
+from astro_mine_api._ids import unique_operation_id
 
 __all__ = ["PREFIX", "build_router", "create_app"]
 
@@ -165,7 +166,7 @@ def build_router(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return _hit(entry, 1.0)
 
-    @router.get("/search")
+    @router.get("/search", operation_id="hub_search")
     def do_search(
         text: str | None = None,
         semantic: str | None = None,
@@ -186,14 +187,14 @@ def build_router(
         )
         return [_hit(result.entry, result.score) for result in search(catalog, query)]
 
-    @router.get("/artifacts/{name}/{version}")
+    @router.get("/artifacts/{name}/{version}", operation_id="hub_get_artifact")
     def artifact(name: str, version: str) -> dict[str, Any]:
         entry = catalog.get(f"{name}:{version}")
         if entry is None:
             raise HTTPException(status_code=404, detail="artifact not found")
         return _detail(entry, registry)
 
-    @router.post("/resolve")
+    @router.post("/resolve", operation_id="hub_resolve")
     def do_resolve(body: ResolveBody) -> dict[str, str]:
         request = ResolutionRequest(
             name=body.name,
@@ -253,7 +254,11 @@ def create_app(
     :class:`~astro_mine.hub.policy.OpaPolicyEngine` over the versioned Rego bundle when the hosted
     tier runs OPA (``opa_engine_from_env()``); the gate's behaviour is identical either way.
     """
-    app = FastAPI(title="Astro-Mine Hub", version=__version__)
+    app = FastAPI(
+        title="Astro-Mine Hub",
+        version=__version__,
+        generate_unique_id_function=unique_operation_id,
+    )
     # The browser tier calls this API cross-origin (_cors.py). Applied here as well as in
     # the composed app so a route test drives an app that behaves like the deployed one.
     add_cors(app)

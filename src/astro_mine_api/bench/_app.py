@@ -63,6 +63,7 @@ from astro_mine.bench.zoo import ScenarioCatalog, WritableCatalog, default_catal
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Response
 
 from astro_mine_api._cors import add_cors
+from astro_mine_api._ids import unique_operation_id
 
 __all__ = [
     "DB_ENV",
@@ -338,6 +339,7 @@ def build_router(
         "/leaderboard/{scenario_id}/scorecards",
         response_model=ViewLeaderboard,
         tags=["leaderboard"],
+        operation_id="bench_leaderboard_scorecards",
     )
     def scorecards(scenario_id: str) -> ViewLeaderboard:
         """The full per-metric leaderboard dataset View renders (bench.md §6; RM-P1-BENCH-12).
@@ -435,6 +437,7 @@ def create_app(
         summary="Public leaderboard: submit-policy-we-run + Hub-digest intake, held-out seeds, "
         "provenance re-execution. Writes require an OIDC bearer token; reads are account-free.",
         openapi_tags=_OPENAPI_TAGS,
+        generate_unique_id_function=unique_operation_id,
     )
     # The browser tier calls this API cross-origin (_cors.py). Applied here as well as in
     # the composed app so a route test drives an app that behaves like the deployed one.

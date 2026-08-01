@@ -60,6 +60,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import Field, ValidationError
 
 from astro_mine_api._cors import add_cors
+from astro_mine_api._ids import unique_operation_id
 
 __all__ = [
     "ASSET_STATIC_PREFIX",
@@ -250,7 +251,7 @@ def build_router(
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
-    @router.post("/intent")
+    @router.post("/intent", operation_id="studio_capture_intent")
     def capture(request: CaptureRequest) -> CapturedObjective:
         try:
             return capture_intent(
@@ -419,7 +420,11 @@ def create_app(
     resolve from: without them the app still captures intent and runs studies, and the
     publish/terrain/catalog routes answer 503 rather than pretending.
     """
-    app = FastAPI(title="Astro-Mine-Studio", version=__version__)
+    app = FastAPI(
+        title="Astro-Mine-Studio",
+        version=__version__,
+        generate_unique_id_function=unique_operation_id,
+    )
     # The browser tier calls this API cross-origin (_cors.py). Applied here as well as in
     # the composed app so a route test drives an app that behaves like the deployed one.
     add_cors(app)

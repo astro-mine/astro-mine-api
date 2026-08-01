@@ -40,6 +40,7 @@ from astro_mine.core.artifacts import ArtifactStore
 from fastapi import APIRouter, FastAPI, HTTPException
 
 from astro_mine_api._cors import add_cors
+from astro_mine_api._ids import unique_operation_id
 
 __all__ = ["PREFIX", "build_router", "create_app"]
 
@@ -92,12 +93,12 @@ def build_router(
         variants = sweep.expand()
         return {"size": len(variants), "jobs": [v.model_dump(mode="json") for v in variants]}
 
-    @router.post("/sweeps/compile")
+    @router.post("/sweeps/compile", operation_id="cloud_compile_sweep")
     def compile_sweep_endpoint(sweep: SweepSpec, namespace: str = "default") -> dict[str, Any]:
         """Compile a SweepSpec to its Argo fan-out Workflow."""
         return compile_sweep(sweep, namespace=namespace)
 
-    @router.post("/workflows/compile")
+    @router.post("/workflows/compile", operation_id="cloud_compile_workflow")
     def compile_workflow_endpoint(
         workflow: WorkflowSpec, namespace: str = "default"
     ) -> dict[str, Any]:
@@ -117,6 +118,7 @@ def create_app(*, store: ArtifactStore | None = None, default_backend: str = "lo
     app = FastAPI(
         title="astro-mine-cloud",
         summary="Submission edge -- submit and compile jobs/sweeps/workflows.",
+        generate_unique_id_function=unique_operation_id,
     )
     # The browser tier calls this API cross-origin (_cors.py). Applied here as well as in
     # the composed app so a route test drives an app that behaves like the deployed one.

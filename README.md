@@ -70,6 +70,11 @@ is safe here only because **credentials are never permitted** — nothing in the
 cookie. A request that sends no `Origin` header is unaffected in every case, so `curl`, the CLI and
 server-to-server callers behave exactly as they did before.
 
+A page may send `content-type` and `authorization`. The second is not a contradiction of the
+sentence above: CORS *credentials* are cookies and auth state the browser attaches by itself, while
+an `Authorization` header a page sets explicitly is an ordinary request header. Bench's
+authenticated routes need it, and permitting it leaves `allow_credentials` off.
+
 **The local tier does not need this distribution at all**, and that is a requirement rather than
 an accident (CX-LOCAL): Hub's tier-1 client, Bench's local scoring, Cloud's local backend and
 Studio's library API all work with no service running. A change that makes the API mandatory for a

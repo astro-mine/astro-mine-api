@@ -129,14 +129,48 @@ class SearchHit(BaseModel):
 
 
 class ArtifactDetail(SearchHit):
-    """A single artifact: its projection, its full catalog record, and what is attested.
+    """A single artifact: its projection, its catalog record, its manifest attributes, and what is
+    attested.
 
     ``attestations`` names the attestation *types present in the registry* — it is emphatically not
     a verification verdict, and the front end is required to say so in those words (ui.md §7).
     Empty when the deployment has no registry to ask.
+
+    ``attributes`` is the Core manifest's open map, served **verbatim** and kept out of ``record``
+    because ``record`` is Core's ``CatalogRecord`` projection and that projection deliberately drops
+    it. It is unbounded and unschematized by design — read a key only if you know the producer
+    stamps it, and never assume one is present.
     """
 
     record: dict[str, Any]
+    #: The Core manifest's open ``attributes`` map — the kind-specific descriptors Core deliberately
+    #: does not schematize, so that the waist stays thin and a downstream plugin is never blocked.
+    #:
+    #: **Its own field rather than folded into** :attr:`record`, because ``record`` is Core's
+    #: ``CatalogRecord`` projection and ``PluginManifest.to_catalog_record()`` deliberately drops
+    #: this. Putting it inside would make ``record`` a lie about which schema it is.
+    #:
+    #: It is here because the front end's artifact inspector registry resolves on three keys —
+    #: Core's ``kind``, Hub's ``artifact_kind``, and a predicate over *this* (ui.md §6, normative) —
+    #: and the third had nothing behind it: the shape was specified and tested with no data able to
+    #: reach it (astro-mine-ui#7).
+    #:
+    #: **Served verbatim, with no allowlist and no redaction, and that is a decision.** A key
+    #: filter here would be a private authorization model in the one layer api.md §4 says must not
+    #: have one ("AuthZ is enforced with OPA; a surface MUST NOT implement its own"), and a parallel
+    #: metadata schema of exactly the kind hub.md §2 principle 2 refuses — one that drifts from what
+    #: producers actually stamp.
+    #:
+    #: It would also protect nothing. This route already returns ``record`` in full, including the
+    #: ``capability_tags`` that carry Core's dual-use taxonomy; hub.md §9 places license and
+    #: export-control gating at the **download** boundary rather than the metadata one, and
+    #: principle 5 makes anonymous discovery of a public artifact frictionless by design.
+    #:
+    #: What it costs, stated rather than discovered: ``attributes`` is unbounded, so a publisher can
+    #: make every response for its artifact as large as it likes. If that ever needs a limit, the
+    #: limit belongs in Hub's **admission** gate, where the bytes arrive — not in a route that would
+    #: then be silently serving something other than the manifest it claims to project.
+    attributes: dict[str, Any] = Field(default_factory=dict)
     attestations: list[str] = Field(default_factory=list)
 
 
@@ -180,6 +214,9 @@ def _detail(entry: CatalogEntry, registry: RegistryClient | None) -> ArtifactDet
     return ArtifactDetail(
         **_hit(entry, 1.0).model_dump(),
         record=entry.record.model_dump(mode="json"),
+        # From the manifest, not from `entry.record` — the projection above is precisely where this
+        # is not.
+        attributes=entry.manifest.attributes,
         attestations=(
             sorted(
                 {

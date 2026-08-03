@@ -7,6 +7,7 @@ conformance table that shared that file is library-side and stayed with it.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from typing import Any
 
 from astro_mine.core.registry import PluginKind, PluginManifest, Provenance
 from astro_mine.hub._content import content_hash
@@ -25,6 +26,7 @@ def make_manifest(
     description: str = "",
     inputs: Sequence[str] = (),
     outputs: Sequence[str] = (),
+    attributes: Mapping[str, Any] | None = None,
 ) -> PluginManifest:
     """A valid Core :class:`PluginManifest` with a content-addressed provenance digest."""
     return PluginManifest(
@@ -37,6 +39,7 @@ def make_manifest(
         description=description or None,
         inputs=list(inputs),
         outputs=list(outputs),
+        attributes=dict(attributes or {}),
         provenance=Provenance(
             input_hashes=[],
             source_content_hashes={},

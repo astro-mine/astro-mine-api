@@ -12,6 +12,7 @@ from astro_mine.hub.supply_chain import attest, generate_keypair
 from fastapi.testclient import TestClient
 
 from astro_mine_api.hub import create_app
+from astro_mine_api.hub._app import ArtifactDetail, SearchHit
 
 from .conftest import make_manifest
 
@@ -104,6 +105,57 @@ def test_download_gate_fails_closed_and_audits(tmp_path: Path) -> None:
     assert allowed.status_code == 200 and allowed.json()["digest"]
     assert any(record.action == "download" for record in audit.records)
     assert client.post("/hub/artifacts/nope/1.0.0/download", json={}).status_code == 404
+
+
+def test_artifact_detail_carries_the_manifest_attributes(tmp_path: Path) -> None:
+    """The inspector registry's third resolution key, which until now had no data (ui#7).
+
+    `ui.md` §6 keys inspector resolution on Core's `kind`, Hub's `artifact_kind`, and a predicate
+    over `manifest.attributes`. The first two were served; the third was not, because `record` is
+    `PluginManifest.to_catalog_record()` and that projection deliberately drops the open map.
+    """
+    client, registry = _app(tmp_path)
+    attributes = {
+        "body": "MOON",
+        "asset_kind": "rover",
+        # Nested and non-string on purpose: the field is `dict[str, Any]`, and a shallow-looking
+        # test would pass just as well against an implementation that flattened or stringified.
+        "fidelity": {"tier": "medium", "steps": 4096, "validated": True},
+        "regions": ["shackleton", "de-gerlache"],
+    }
+    _publish(client, registry, name="world-pack", attributes=attributes)
+
+    body = client.get("/hub/artifacts/world-pack/1.0.0").json()
+
+    assert body["attributes"] == attributes
+    # Verbatim, and its own field: `record` is Core's projection, and folding this in would make
+    # that field a lie about which schema it is.
+    assert "attributes" not in body["record"]
+
+
+def test_artifact_detail_attributes_default_to_empty_never_null(tmp_path: Path) -> None:
+    """An absent map is `{}`. A client that has to branch on null before iterating is a client
+    that will forget to, and `attributes` is the key a predicate runs over."""
+    client, registry = _app(tmp_path)
+    _publish(client, registry)
+    assert client.get("/hub/artifacts/excavator/1.0.0").json()["attributes"] == {}
+
+
+def test_search_hits_carry_no_attributes(tmp_path: Path) -> None:
+    """The boundary, asserted so it stays deliberate.
+
+    `SearchHit`'s own docstring draws this line for `record` — "it is large, and only the detail
+    route returns it" — and `attributes` is unbounded for exactly the same reason. A search page
+    ranks artifacts; it does not inspect one.
+    """
+    client, registry = _app(tmp_path)
+    _publish(client, registry, attributes={"body": "MOON"})
+
+    hits = client.get("/hub/search", params={"q": "excavator"}).json()
+
+    assert hits and "attributes" not in hits[0]
+    assert "attributes" not in SearchHit.model_fields
+    assert "attributes" in ArtifactDetail.model_fields
 
 
 def test_artifact_detail_shows_attestations(tmp_path: Path) -> None:

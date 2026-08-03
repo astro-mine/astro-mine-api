@@ -2,7 +2,7 @@
   "components": {
     "schemas": {
       "ArtifactDetail": {
-        "description": "A single artifact: its projection, its full catalog record, and what is attested.\n\n``attestations`` names the attestation *types present in the registry* \u2014 it is emphatically not\na verification verdict, and the front end is required to say so in those words (ui.md \u00a77).\nEmpty when the deployment has no registry to ask.",
+        "description": "A single artifact: its projection, its catalog record, its manifest attributes, and what is\nattested.\n\n``attestations`` names the attestation *types present in the registry* \u2014 it is emphatically not\na verification verdict, and the front end is required to say so in those words (ui.md \u00a77).\nEmpty when the deployment has no registry to ask.\n\n``attributes`` is the Core manifest's open map, served **verbatim** and kept out of ``record``\nbecause ``record`` is Core's ``CatalogRecord`` projection and that projection deliberately drops\nit. It is unbounded and unschematized by design \u2014 read a key only if you know the producer\nstamps it, and never assume one is present.",
         "properties": {
           "artifact_kind": {
             "anyOf": [
@@ -21,6 +21,11 @@
             },
             "title": "Attestations",
             "type": "array"
+          },
+          "attributes": {
+            "additionalProperties": true,
+            "title": "Attributes",
+            "type": "object"
           },
           "deprecated": {
             "default": false,

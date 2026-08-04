@@ -267,7 +267,7 @@ def test_every_surface_answers_on_a_deployment_that_configures_nothing(
 
 
 def test_a_single_surface_deployment_imports_only_that_surface() -> None:
-    """"Every surface is imported *only* if it is enabled" — asserted, because it is easy to lose.
+    """Only the enabled surface is imported — asserted, because it is easy to lose.
 
     ``_mount`` reads environment-variable *names* as well as backends, and the obvious way to reach
     one another surface already spells is to import its module — which quietly drags that surface's

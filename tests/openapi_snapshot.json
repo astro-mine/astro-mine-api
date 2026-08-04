@@ -731,6 +731,70 @@
         "title": "ComparisonView",
         "type": "object"
       },
+      "CompiledManifest": {
+        "additionalProperties": true,
+        "description": "A spec compiled to the cluster object that would run it.\n\nThe response of all three ``compile`` routes: a ``batch/v1`` ``Job`` or a ``ray.io/v1``\n``RayJob`` from ``/cloud/jobs/compile`` depending on which engine the job routes to, and an\n``argoproj.io/v1alpha1`` ``Workflow`` from ``/cloud/sweeps/compile`` and\n``/cloud/workflows/compile``. The manifest is served as it would be applied, so ``apiVersion``,\n``kind`` and ``metadata`` can be read without knowing which of those you asked for.\n\n``spec`` is deliberately an open object: it is the schema of whichever engine compiled it, and\n``kind`` is what says which one that is. The model is open for the same reason -- an engine\noutside this repository may emit fields nothing here has heard of, and they are passed through\nrather than dropped.",
+        "properties": {
+          "apiVersion": {
+            "title": "Apiversion",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/CompiledManifestMetadata"
+          },
+          "spec": {
+            "additionalProperties": true,
+            "title": "Spec",
+            "type": "object"
+          }
+        },
+        "required": [
+          "apiVersion",
+          "kind",
+          "metadata",
+          "spec"
+        ],
+        "title": "CompiledManifest",
+        "type": "object"
+      },
+      "CompiledManifestMetadata": {
+        "additionalProperties": true,
+        "description": "A compiled object's ``metadata`` -- the half of a manifest Astro-Mine writes.\n\nBuilt the same way for a Kubernetes ``Job``, a KubeRay ``RayJob`` and an Argo ``Workflow``, and\nthe keys inside it are the platform's own label schema (``app.kubernetes.io/*``,\n``astro-mine.org/*``, plus Kueue's queue label). This is the part of a compiled object that can\nbe read without knowing which engine produced it: what the run will be called, where it lands,\nand whose quota it is charged to.",
+        "properties": {
+          "annotations": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Annotations",
+            "type": "object"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "namespace": {
+            "title": "Namespace",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "namespace"
+        ],
+        "title": "CompiledManifestMetadata",
+        "type": "object"
+      },
       "ContingencyBranch": {
         "additionalProperties": false,
         "description": "An alternate phase sequence taken when ``trigger`` fires (studio.md \u00a73).",
@@ -2925,7 +2989,7 @@
         "type": "object"
       },
       "SweepExpansion": {
-        "description": "A sweep's deterministic expansion into concrete jobs.\n\nUnlike the three ``compile`` routes below, this shape belongs to Astro-Mine rather than to an\nexecution engine, so it is declared rather than left open.",
+        "description": "A sweep's deterministic expansion into concrete jobs.\n\nAstro-Mine's own shape end to end: what a SweepSpec *means*, before any engine sees it.",
         "properties": {
           "jobs": {
             "items": {
@@ -4670,7 +4734,7 @@
     },
     "/cloud/jobs/compile": {
       "post": {
-        "description": "Compile a JobSpec to its engine manifest (auto-routed unless *engine* is given).\n\n**Deliberately an open object.** The response is an execution engine's own manifest \u2014 an\nArgo ``Workflow`` or a Kubernetes ``Job`` \u2014 whose schema belongs to that engine and changes\nwith it. Declaring a closed model here would either be a lie the first time an engine added\na field, or a second copy of someone else's API that this repository would have to chase.\nA client that needs to read one of these knows which engine it asked for.",
+        "description": "Compile a JobSpec to its engine manifest (auto-routed unless *engine* is given).\n\nA ``batch/v1`` Job or a ``ray.io/v1`` RayJob depending on what\n:func:`~astro_mine.cloud.engines.select_engine` routes *job* to; :class:`CompiledManifest`\nis the shape either way.",
         "operationId": "cloud_compile_job",
         "parameters": [
           {
@@ -4715,9 +4779,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Cloud Compile Job",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CompiledManifest"
                 }
               }
             },
@@ -4749,7 +4811,7 @@
     },
     "/cloud/sweeps/compile": {
       "post": {
-        "description": "Compile a SweepSpec to its Argo fan-out Workflow.\n\nAn open object for the same reason as ``compile_job`` above: this is Argo's schema.",
+        "description": "Compile a SweepSpec to its Argo fan-out Workflow -- one task per expanded variant.",
         "operationId": "cloud_compile_sweep",
         "parameters": [
           {
@@ -4778,9 +4840,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Cloud Compile Sweep",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CompiledManifest"
                 }
               }
             },
@@ -4861,7 +4921,7 @@
     },
     "/cloud/workflows/compile": {
       "post": {
-        "description": "Compile a WorkflowSpec to its Argo DAG Workflow.\n\nAn open object for the same reason as ``compile_job`` above: this is Argo's schema.",
+        "description": "Compile a WorkflowSpec to its Argo DAG Workflow -- one task per step, edges as deps.",
         "operationId": "cloud_compile_workflow",
         "parameters": [
           {
@@ -4890,9 +4950,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Cloud Compile Workflow",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CompiledManifest"
                 }
               }
             },

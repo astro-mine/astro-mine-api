@@ -32,17 +32,17 @@ from astro_mine_api.studio.app import create_app as studio_app
 #: `current_document`, so it cannot be generated one way and checked another.
 SNAPSHOT = Path(__file__).resolve().parent / "openapi_snapshot.json"
 
-#: The three routes whose payload is genuinely open, each with the reason it is.
+#: The routes whose whole payload is genuinely open, each with the reason it is. **Adding to this
+#: list is the point of the test**: a new untyped route fails until someone writes down why it
+#: deserves to be here.
 #:
-#: A response here is an execution engine's own manifest — an Argo ``Workflow`` or a Kubernetes
-#: ``Job`` — whose schema belongs to that engine and moves with it. Declaring a closed model would
-#: be a lie the first time an engine added a field. **Adding to this list is the point of the
-#: test**: a new untyped route fails until someone writes down why it deserves to be here.
-OPEN_PAYLOAD_OPERATIONS = {
-    "cloud_compile_job": "an execution engine's manifest (Argo Workflow / Kubernetes Job)",
-    "cloud_compile_sweep": "Argo's fan-out Workflow schema",
-    "cloud_compile_workflow": "Argo's DAG Workflow schema",
-}
+#: It is empty. It held the three ``/cloud/*/compile`` operations, on the grounds that a compiled
+#: manifest is an execution engine's own object — and that is still true of the ``spec`` inside one,
+#: which is why ``CompiledManifest.spec`` is an open object. It was never true of the envelope
+#: around it: ``apiVersion``/``kind``/``metadata`` is the same for every engine and is mostly
+#: Astro-Mine's own writing, so declaring it costs nothing and lets a client name what it is holding
+#: (api#12).
+OPEN_PAYLOAD_OPERATIONS: dict[str, str] = {}
 
 
 @pytest.fixture(autouse=True)
@@ -185,6 +185,9 @@ def test_the_open_payload_allowlist_is_still_accurate(document: dict[str, Any]) 
         ("hub_resolve", "ResolveResult"),
         ("hub_download", "DownloadGrant"),
         ("cloud_expand_sweep", "SweepExpansion"),
+        ("cloud_compile_job", "CompiledManifest"),
+        ("cloud_compile_sweep", "CompiledManifest"),
+        ("cloud_compile_workflow", "CompiledManifest"),
         ("healthz", "DeploymentHealth"),
     ],
 )
@@ -193,6 +196,23 @@ def test_the_routes_the_ui_calls_have_real_types(
 ) -> None:
     operation = next(op for _, _, op in _operations(document) if op["operationId"] == operation_id)
     assert schema_name in json.dumps(_json_200(operation))
+
+
+def test_the_compile_routes_declare_the_manifest_envelope(document: dict[str, Any]) -> None:
+    """What a client may rely on from a compiled manifest, and what it may not (api#12).
+
+    The three routes share one model because they share one shape — a Kubernetes object — so this
+    asserts the four keys every engine writes, and asserts that ``spec`` and the model itself stay
+    open, which is the honest half of the old "deliberately an open object" and the half that keeps
+    an out-of-tree engine's fields from being filtered away on the way out.
+    """
+    schema = document["components"]["schemas"]["CompiledManifest"]
+    assert set(schema["required"]) == {"apiVersion", "kind", "metadata", "spec"}
+    assert schema["properties"]["spec"]["additionalProperties"] is True, "the engine's own schema"
+    assert schema["additionalProperties"] is True, "a response model filters; this one must not"
+
+    metadata = document["components"]["schemas"]["CompiledManifestMetadata"]
+    assert {"name", "namespace", "labels", "annotations"} <= set(metadata["properties"])
 
 
 def test_the_replay_route_advertises_a_binary_download(document: dict[str, Any]) -> None:

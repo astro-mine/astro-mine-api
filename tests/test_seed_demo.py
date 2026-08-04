@@ -96,12 +96,6 @@ def client(seeded: dict[str, Any]) -> Iterator[TestClient]:
     }
     previous = {key: os.environ.get(key) for key in env}
     os.environ.update(env)
-    # The seeder does this in its own process; an in-process app has to do it too, for the same
-    # reason and with the same caveat — `_eval.EMBARGO_ROOT` is computed from the installed
-    # package's location, so a wheel-installed leaderboard cannot find the seeds that ship here.
-    # `tests/bench/conftest.py` names it a deployment gap, not a test one; this is the third place
-    # that has had to work around it.
-    seed_demo.point_embargo_at_repo()
     try:
         with TestClient(build_app()) as test_client:
             yield test_client

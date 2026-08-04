@@ -23,6 +23,13 @@ The one exception is the episode replay, and it is exception by absence rather t
 platform offers ``LeaderboardService.attach_replay`` as a producer seam and **no REST route**, so
 attaching is a library call here too. It is marked where it happens.
 
+**The held-out seeds are found through the environment**, not by reaching into the platform. This
+script used to rebind a keyword default on ``load_heldout_seeds`` — one of three copies of that
+workaround in this repository — because the lookup was derived from the platform's own module
+location and had no override. ``astro-mine-platform#15`` gave it one, so the seeder emits
+``ASTRO_MINE_BENCH_EMBARGO_ROOT`` in the environment block and the deployment reads it like any
+other setting (#19).
+
 **Idempotent.** Every step checks for its own output first, so a second run against the same root is
 a no-op that reprints the same handles — except the bearer token, which is minted fresh on every run
 because tokens expire and a stale one is worse than none.
@@ -519,35 +526,6 @@ class _JwksHandler(BaseHTTPRequestHandler):
 # --- Bench ------------------------------------------------------------------------------------
 
 
-def point_embargo_at_repo() -> None:
-    """Make the held-out seed lookup resolve against this repository's ``embargo/``.
-
-    ``astro_mine.bench.leaderboard._eval.EMBARGO_ROOT`` is computed from the *module's* location —
-    correct when the leaderboard and the seeds shared a checkout, wrong now that the library arrives
-    as an installed wheel and the seeds ship here. ``load_heldout_seeds`` binds it as a **keyword
-    default at import time**, so rebinding the module attribute alone changes nothing; the default
-    on the function object has to move too.
-
-    This is the same redirection ``tests/bench/conftest.py`` performs, and the same **deployment
-    gap** it names: a hosted leaderboard installed from wheels has the identical broken lookup. The
-    fix belongs to the platform, which owns ``_eval``; until then, anything in this repository that
-    scores a submission has to do this.
-    """
-    from astro_mine.bench.leaderboard import _eval
-
-    embargo = REPO / "embargo"
-    _eval.EMBARGO_ROOT = embargo
-    kwdefaults = _eval.load_heldout_seeds.__kwdefaults__
-    if kwdefaults is None or "embargo_root" not in kwdefaults:
-        raise SystemExit(
-            "load_heldout_seeds no longer takes embargo_root as a keyword default — the platform "
-            "changed the seam this redirection depends on; re-read "
-            "astro_mine.bench.leaderboard._eval (and tests/bench/conftest.py, which asserts the "
-            "same thing)"
-        )
-    kwdefaults["embargo_root"] = embargo
-
-
 #: The demo policy module the seeder writes and the sandboxed evaluator imports.
 #:
 #: Written rather than referenced because the platform ships exactly one importable baseline, and a
@@ -718,6 +696,9 @@ def environment(
     ``ASTRO_MINE_BENCH_SANDBOX_PYTHONPATH`` grants the evaluation worker the seed's own policy
     directory. The sandbox scrubs the environment and confines the filesystem, so an import root a
     submission needs has to be granted explicitly — that is the seam working, not a hole in it.
+
+    ``ASTRO_MINE_BENCH_EMBARGO_ROOT`` is what makes a *served* deployment able to score at all; see
+    below.
     """
     return {
         "ASTRO_MINE_API_CORS_ORIGINS": cors_origins,
@@ -727,6 +708,11 @@ def environment(
         "ASTRO_MINE_BENCH_DB": f"sqlite+pysqlite:///{root / 'bench.sqlite'}",
         "ASTRO_MINE_BENCH_OBJECTS": str(root / "objects"),
         "ASTRO_MINE_BENCH_SANDBOX_PYTHONPATH": str(root / "policies"),
+        # The sealed held-out seed sets, which ship in *this* repository because it is the one a
+        # hosted leaderboard runs from. Without this a served deployment answers 404 "no held-out
+        # seed set" to every submission: the platform derives the path from its own module location,
+        # which points inside site-packages on an installed wheel (astro-mine-platform#15).
+        "ASTRO_MINE_BENCH_EMBARGO_ROOT": str(REPO / "embargo"),
         "ASTRO_MINE_BENCH_OIDC_ISSUER": issuer,
         "ASTRO_MINE_BENCH_OIDC_AUDIENCE": audience,
         "ASTRO_MINE_BENCH_OIDC_JWKS_URL": jwks_url,
@@ -814,7 +800,6 @@ def main(argv: list[str] | None = None) -> int:
         ttl_seconds=args.token_ttl,
     )
 
-    point_embargo_at_repo()
     submissions = seed_bench(token, jwks=jwks)
     say(f"  bench:    {len(submissions)} submissions on {SCENARIO_ID}")
 

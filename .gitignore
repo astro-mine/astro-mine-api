@@ -20,3 +20,7 @@ htmlcov/
 .vscode/
 .idea/
 .DS_Store
+
+# Local scratch: a seeded demo deployment (scripts/seed_demo.py).
+# Holds a registry, SQLite catalogs, an object store and two private keys. Never committed.
+.demo/

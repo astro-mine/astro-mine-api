@@ -80,6 +80,37 @@ an accident (CX-LOCAL): Hub's tier-1 client, Bench's local scoring, Cloud's loca
 Studio's library API all work with no service running. A change that makes the API mandatory for a
 local workflow is a defect.
 
+### Seeding a demo deployment
+
+A deployment brought up from nothing is correct and empty: no artifacts, no leaderboard rows, no
+catalog. `scripts/seed_demo.py` fills it — offline, with no hosted Hub, no Docker and no IdP:
+
+```bash
+uv run python scripts/seed_demo.py --root .demo
+```
+
+It publishes and signs a small content set, indexes it, seeds the Studio example campaign, generates
+an RSA keypair and writes its **public** half as a JWKS, and scores two policies through the real
+`POST /bench/submissions` route — so what it leaves behind is a state the API itself can reach
+rather than rows written into a store. It is **idempotent**: a second run against the same root
+resolves the same content addresses and mints a fresh bearer token.
+
+It prints the environment to export, then:
+
+```bash
+python -m http.server 8081 --directory .demo          # serves jwks.json
+uv run uvicorn --factory astro_mine_api._app:make_app --port 8000
+```
+
+`.demo/seed.json` carries the same thing machine-readably — the environment block, the published
+references and digests, the seeded submission ids, and the bearer token — which is how
+[`astro-mine-ui`](https://github.com/astro-mine/astro-mine-ui)'s end-to-end journey suite drives a
+real deployment.
+
+**The seed root holds private keys** (the registry's signing key and the token-signing key), both
+generated per root and written owner-only. It is scratch state: delete it and the identity goes with
+it. Never commit one.
+
 ## Not a Python API
 
 Nothing should import this distribution as a library. If code wants what an endpoint does, it

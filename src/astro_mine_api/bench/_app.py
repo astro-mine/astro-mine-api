@@ -40,7 +40,13 @@ import os
 from typing import Annotated
 
 from astro_mine.bench._version import __version__
-from astro_mine.bench.leaderboard._audit import AuditDecision, AuditEvent, audit_event
+from astro_mine.bench.leaderboard._audit import (
+    AuditDecision,
+    AuditEvent,
+    AuditLog,
+    InMemoryAuditLog,
+    audit_event,
+)
 from astro_mine.bench.leaderboard._auth import Principal, oidc_verifier_from_env
 from astro_mine.bench.leaderboard._authz import Action, policy_engine_from_env
 from astro_mine.bench.leaderboard._eval import rank
@@ -180,6 +186,26 @@ def _default_sandbox_limits() -> SandboxLimits:
     )
 
 
+def _default_audit() -> AuditLog:
+    """The audit trail: durable on the submission store's database, process-local without one.
+
+    ``SqlAuditLog`` is append-only by construction — an insert and a select, no update and no delete
+    — because ``bench.md`` §9 wants a trail an operator cannot rewrite. It went unwired here,
+    which left every deployment on ``InMemoryAuditLog``: submissions, scorecards and replays
+    persisted and the record of *who submitted them and what was refused* did not (api#17). A
+    trail an operator can erase by restarting the process is no better than one they can edit.
+
+    It runs on the same URL as the submission store — one SQLAlchemy code path, one engine, no
+    second connection string to configure or to get wrong.
+    """
+    url = os.environ.get(DB_ENV)
+    if not url:
+        return InMemoryAuditLog()
+    from astro_mine.bench.leaderboard._sql import SqlAuditLog
+
+    return SqlAuditLog(url)
+
+
 def _default_service(store: LeaderboardStore) -> LeaderboardService:
     """Build the hosted service, wiring each backend from the environment (fail-closed)."""
     from astro_mine.bench.leaderboard._objects import FileObjectStore, InMemoryObjectStore
@@ -198,6 +224,7 @@ def _default_service(store: LeaderboardStore) -> LeaderboardService:
         authn=oidc_verifier_from_env(),
         policy_engine=policy_engine_from_env(),
         attestation_policy=attestation_policy_from_env(),
+        audit=_default_audit(),
         scorer=SandboxScorer(sandbox),
     )
 

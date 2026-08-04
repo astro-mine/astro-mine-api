@@ -33,10 +33,13 @@ from astro_mine_api._health import Health, health
 from astro_mine_api._ids import unique_operation_id
 
 __all__ = [
+    "HUB_REGISTRY_ENV",
+    "IN_MEMORY_CATALOG_URL",
     "SURFACES",
     "SURFACES_ENV",
     "build_app",
     "enabled_surfaces",
+    "hub_catalog_url",
     "make_app",
 ]
 
@@ -46,6 +49,15 @@ SURFACES_ENV = "ASTRO_MINE_API_SURFACES"
 
 #: Every surface this distribution can serve, in the order they mount.
 SURFACES: tuple[str, ...] = ("hub", "studio", "cloud", "bench")
+
+#: The local OCI-layout registry three of the four surfaces read.
+#:
+#: Spelled here as well as in ``studio.serve`` and ``bench._app`` — which each carry their own
+#: constant for the same variable, inherited from the component repositories they were ported from —
+#: because importing either of theirs from this module would drag a surface's package in on a
+#: deployment that did not enable it, and "every surface is imported *only* if it is enabled" is a
+#: property :func:`build_app` promises a few lines below.
+HUB_REGISTRY_ENV = "ASTRO_MINE_HUB_REGISTRY"
 
 
 class DeploymentHealth(Health):
@@ -119,16 +131,62 @@ def build_app(surfaces: Iterable[str] | None = None) -> FastAPI:
     return app
 
 
+#: The Hub catalog's in-memory fallback, as a **shared-cache** SQLite URI (api#15).
+#:
+#: ``sqlite+pysqlite:///:memory:`` looks like the obvious spelling and is not one. SQLAlchemy serves
+#: a ``:memory:`` SQLite URL from a ``SingletonThreadPool`` — one connection *per thread* — and
+#: every SQLite in-memory connection is its own private database. So ``SqlCatalog``'s
+#: ``create_all`` ran on the constructing thread, and every request, served on a worker thread,
+#: arrived at an empty database:
+#:
+#:     sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: catalog
+#:
+#: which made ``GET /hub/search`` answer 500 on every deployment that did not set
+#: ``HUB_POSTGRES_URL`` — that is to say, on the default one. A shared-cache URI names one database
+#: that every connection in the process attaches to, so the fallback now behaves the way
+#: ``hub/_asgi.py`` has always claimed it does: in-memory, process-lifetime, no configuration.
+#:
+#: It is still in-memory, and that is still the right *default* rather than the right deployment:
+#: the catalog is an index over a registry, so losing it on restart loses no content. A deployment
+#: that wants it durable sets ``HUB_POSTGRES_URL``, which is the variable this reads first.
+IN_MEMORY_CATALOG_URL = (
+    "sqlite+pysqlite:///file:astro_mine_hub_catalog?mode=memory&cache=shared&uri=true"
+)
+
+
+def hub_catalog_url() -> str:
+    """The Hub catalog's database URL: ``HUB_POSTGRES_URL``, else the shared in-memory fallback."""
+    from astro_mine_api.hub._asgi import POSTGRES_URL_ENV
+
+    return os.environ.get(POSTGRES_URL_ENV) or IN_MEMORY_CATALOG_URL
+
+
 def _mount(app: FastAPI, name: str) -> None:
     """Attach one surface, wiring its backends from the environment."""
     if name == "hub":
         from astro_mine.hub.index import sql_catalog
+        from astro_mine.hub.registry import Registry
 
         from astro_mine_api.hub import build_router as hub_router
-        from astro_mine_api.hub._asgi import POSTGRES_URL_ENV
 
-        url = os.environ.get(POSTGRES_URL_ENV, "sqlite+pysqlite:///:memory:")
-        app.include_router(hub_router(sql_catalog(url)))
+        # **The registry, not only the catalog** (api#16). `build_router` takes both, and without
+        # the registry the surface silently loses two things: every artifact reports
+        # `attestations: []` — because they are read as OCI referrers off the registry, not off the
+        # index — and `POST /hub/publish` refuses with 503 forever, because admission has nothing to
+        # verify against and correctly declines to index on a caller's word. Neither failure looks
+        # like missing configuration from the outside; the first looks like content with no
+        # evidence, which is precisely the impression `ui.md` §7 rule 6 exists to prevent.
+        #
+        # `ASTRO_MINE_HUB_REGISTRY` is the same variable Studio and Bench already read, so a
+        # deployment that pointed those at a registry gets this with no new configuration; a
+        # deployment that set nothing keeps exactly today's behaviour.
+        registry_path = os.environ.get(HUB_REGISTRY_ENV)
+        app.include_router(
+            hub_router(
+                sql_catalog(hub_catalog_url()),
+                registry=Registry(registry_path) if registry_path else None,
+            )
+        )
 
     elif name == "studio":
         from astro_mine_api.studio import build_router as studio_router

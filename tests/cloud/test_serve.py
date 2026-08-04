@@ -41,6 +41,13 @@ def _job_body(**overrides: object) -> dict:  # type: ignore[type-arg]
     return base.model_copy(update=overrides).model_dump(mode="json")
 
 
+def _workflow_body() -> dict:  # type: ignore[type-arg]
+    workflow = WorkflowSpec(
+        name="pipe", steps=[WorkflowStep(name="a", job=JobSpec(image=IMAGE, command=["run"]))]
+    )
+    return workflow.model_dump(mode="json")
+
+
 def test_healthz_and_backends(client: TestClient) -> None:
     body = client.get("/cloud/healthz").json()
     # The one shape every surface answers with (api#4); `tests/test_health.py` owns the convergence.
@@ -91,7 +98,49 @@ def test_expand_and_compile_sweep(client: TestClient) -> None:
 
 
 def test_compile_workflow(client: TestClient) -> None:
-    workflow = WorkflowSpec(
-        name="pipe", steps=[WorkflowStep(name="a", job=JobSpec(image=IMAGE, command=["run"]))]
-    ).model_dump(mode="json")
-    assert client.post("/cloud/workflows/compile", json=workflow).json()["kind"] == "Workflow"
+    body = client.post("/cloud/workflows/compile", json=_workflow_body()).json()
+    assert body["kind"] == "Workflow"
+
+
+def test_a_compiled_manifest_answers_the_declared_envelope(client: TestClient) -> None:
+    """The four keys the OpenAPI document now promises, in an actual response (api#12).
+
+    Two engines, so what is asserted is the shape rather than one engine's object: the envelope is
+    identical and only ``apiVersion``/``kind``/``spec`` differ, which is why the three compile
+    routes share one response model.
+    """
+    for engine, api_version, kind in [(None, "batch/v1", "Job"), ("ray", "ray.io/v1", "RayJob")]:
+        params = {} if engine is None else {"engine": engine}
+        body = client.post(
+            "/cloud/jobs/compile", params={**params, "namespace": "tenant-a"}, json=_job_body()
+        ).json()
+        assert (body["apiVersion"], body["kind"]) == (api_version, kind)
+        assert body["metadata"]["namespace"] == "tenant-a"
+        assert body["metadata"]["name"].startswith("amc-")
+        assert body["metadata"]["labels"]["app.kubernetes.io/managed-by"] == "astro-mine-cloud"
+        # Declared and defaulted rather than absent: this job names no inputs or outputs.
+        assert body["metadata"]["annotations"] == {}
+        assert body["spec"]
+
+
+def test_a_compiled_manifest_keeps_fields_the_model_does_not_declare(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A response model filters. This one must not, because engines are a registry seam.
+
+    Stands in an engine emitting a key the model has never heard of — an out-of-tree engine, or an
+    in-tree one the day Argo grows a field — and asserts it reaches the client rather than being
+    quietly deleted between the compiler and the wire.
+    """
+    compiled = {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Workflow",
+        "metadata": {"name": "w", "namespace": "default", "labels": {}, "generateName": "w-"},
+        "spec": {"entrypoint": "main"},
+        "hooks": {"exit": {"template": "notify"}},
+    }
+    monkeypatch.setattr("astro_mine_api.cloud.app.compile_workflow", lambda *a, **k: compiled)
+
+    body = client.post("/cloud/workflows/compile", json=_workflow_body()).json()
+    assert body["hooks"] == {"exit": {"template": "notify"}}
+    assert body["metadata"]["generateName"] == "w-"

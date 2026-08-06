@@ -3,8 +3,8 @@
 The orchestration logic is an importable library in the platform; this FastAPI surface is a
 *deployment* of it, not a separate codebase. Phase-1 exposes the local tier (intent capture +
 synchronous study runs driving the in-process loop) so a single FastAPI process works on a laptop
-(studio.md §7). SSE/WebSocket result streaming is deferred; the React front end is
-`@astro-mine/studio-ui`.
+(studio.md §7). SSE/WebSocket result streaming is deferred; the front end is the ``/design`` pages
+of the one application, in ``astro-mine-ui``.
 
 :mod:`astro_mine_api.studio.app` is the surface itself; :mod:`astro_mine_api.studio.serve` is the
 composition that wires its →Hub / ←Hub seams against a local OCI-layout registry and mounts the

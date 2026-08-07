@@ -114,9 +114,11 @@ _UI_NOT_BUILT_HTML = """<!doctype html>
 </head>
 <body>
 <h1>Astro-Mine Studio is running</h1>
-<p>The backend is up, but the web UI has not been built, so there is nothing to show here.</p>
-<p>Build it once, then reload:</p>
-<pre>cd ui &amp;&amp; pnpm install &amp;&amp; pnpm build:harness</pre>
+<p>The backend is up. The web UI is not part of this repository — Studio's front end is the
+<code>/design</code> pages of the one application, in
+<a href="https://github.com/astro-mine/astro-mine-ui">astro-mine-ui</a>. Point it at this
+origin.</p>
+<p>If you have a built UI directory of your own, pass <code>--ui-dir</code> to mount it here.</p>
 <p>The API is live regardless — try <code>/studio/healthz</code> or <code>/docs</code>.</p>
 </body>
 </html>
@@ -156,12 +158,12 @@ def resolve_key(
 
 
 def resolve_ui_dir(arg: str | None) -> Path | None:
-    """Locate the **browsable standalone** UI build. Explicit flag → env → `<cwd>/ui/dist-harness`.
+    """Locate a built UI directory. Explicit flag → env → `<cwd>/ui/dist-harness`.
 
-    Since the surface conversion (#31), `pnpm build` emits a *library* (`ui/dist`, no `index.html`)
-    for the console to compose; the browsable standalone app — the one a single-component local
-    Studio mounts — is `pnpm build:harness` → `ui/dist-harness`. Absent is fine: composition
-    mounts a 'not built' page instead of 404-ing the root."""
+    No repository carries a UI tree any more: Studio's front end is the `/design` pages of the one
+    application in astro-mine-ui (RM-DIST-04/05), and the `Surface` contract this docstring used to
+    describe is retired (ui.md §11). The default path is kept so an existing build stays mountable,
+    and absent is fine — composition mounts a 'not built' page instead of 404-ing the root."""
     value = arg if arg is not None else os.environ.get(UI_DIR_ENV)
     if value:
         return Path(value).expanduser()
@@ -325,7 +327,7 @@ def _mount_ui(app: FastAPI, ui_dir: Path | None, report: ServeReport) -> None:
 
     report.ui_mounted = False
     report.ui_detail = (
-        "UI not built — run `pnpm build:harness` in ui/"
+        "UI not found — Studio's front end is the /design pages of astro-mine-ui"
         if ui_dir is not None
         else "UI mount disabled"
     )

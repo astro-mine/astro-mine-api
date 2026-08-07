@@ -18,6 +18,7 @@ not merely importable.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -158,7 +159,43 @@ def test_the_pipeline_actually_records_its_metrics(
 
 # =================================================================================================
 # AC3 — the dashboard definition
+#
+# These two came from the platform with the files they read (RM-DIST-03). They could not be ported
+# with the rest of this module, because `deploy/` was still in the other repository and a test that
+# reads across a repo boundary proves nothing about what ships. Now the artifacts are here, so the
+# assertions are too — and they are the reason the move was worth making rather than copying.
 # =================================================================================================
+
+
+def test_the_grafana_dashboard_covers_the_named_signals() -> None:
+    """AC3: queue depth, mismatch rate, and eval latency — as PromQL that matches real series."""
+    dashboard = json.loads(
+        (REPO / "deploy" / "grafana" / "bench-submission-pipeline.json").read_text(encoding="utf-8")
+    )
+    titles = [panel["title"] for panel in dashboard["panels"]]
+    assert any("Queue depth" in title for title in titles)
+    assert any("mismatch rate" in title.lower() for title in titles)
+    assert any("latency" in title.lower() for title in titles)
+
+    promql = " ".join(
+        target["expr"] for panel in dashboard["panels"] for target in panel["targets"]
+    )
+    # The PromQL must reference the series the app actually exposes — a dashboard querying a
+    # metric that does not exist is a dashboard that renders empty panels forever.
+    assert "astro_mine_bench_queue_depth" in promql
+    assert 'astro_mine_bench_reexecutions_total{verdict="mismatch"}' in promql
+    assert "astro_mine_bench_evaluation_duration_seconds_bucket" in promql
+
+
+def test_prometheus_scrape_config_targets_the_api() -> None:
+    """The scrape config must name the service that serves `/bench/metrics` in this tier's compose.
+
+    It said `leaderboard:8000` when the Bench leaderboard was its own deployable. One image serves
+    every surface now, so the target is the `api` service and the path carries the Bench prefix.
+    """
+    config = (REPO / "deploy" / "prometheus.yml").read_text(encoding="utf-8")
+    assert "/bench/metrics" in config
+    assert "api:8000" in config
 
 
 # =================================================================================================

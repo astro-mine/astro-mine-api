@@ -1,0 +1,164 @@
+{
+  "title": "Astro-Mine-Bench — submission pipeline",
+  "uid": "astro-mine-bench-pipeline",
+  "tags": ["astro-mine", "bench", "CX-OBS"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "description": "The submit -> evaluate -> score -> rank pipeline (bench.md §10). Queue depth, the re-execution mismatch rate (the key integrity signal), evaluation latency, and the authorization / supply-chain / sandbox signals from bench#29 and bench#30. Scraped from the leaderboard's /metrics endpoint (astro_mine.bench.telemetry).",
+  "templating": {
+    "list": [
+      {
+        "name": "scenario",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(astro_mine_bench_submissions_total, scenario)",
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Queue depth",
+      "description": "Submissions accepted and awaiting an evaluation worker. The primary back-pressure signal for the evaluation fleet (bench.md §8, §10). A depth that climbs without draining means the fleet is undersized or a worker is wedged.",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "fillOpacity": 10, "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 50 },
+              { "color": "red", "value": 200 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "astro_mine_bench_queue_depth",
+          "legendFormat": "queued"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Re-execution mismatch rate — THE INTEGRITY SIGNAL",
+      "description": "The fraction of sampled provenance re-executions that did NOT reproduce their recorded result. bench.md §10 calls this 'a key integrity signal': a non-zero, sustained rate means submissions are non-deterministic or being tampered with, and the leaderboard's central anti-gaming claim (bench.md §9) is failing. It should sit flat at zero. Any sustained rise is a page, not a ticket.",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": { "fillOpacity": 10, "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.01 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(astro_mine_bench_reexecutions_total{verdict=\"mismatch\"}[30m])) / clamp_min(sum(rate(astro_mine_bench_reexecutions_total[30m])), 1e-9)",
+          "legendFormat": "mismatch rate"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Evaluation latency (p50 / p95 / p99)",
+      "description": "Wall-clock of each pipeline stage, from the astro_mine_bench_evaluation_duration_seconds histogram. bench.md §8's hosted SLO: a standard-budget evaluation (~50 seeds of the anchor scenario) completes in minutes-to-low-hours. The `stage` label separates evaluate from reexecute.",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum by (le, stage) (rate(astro_mine_bench_evaluation_duration_seconds_bucket{scenario=~\"$scenario\"}[5m])))",
+          "legendFormat": "p50 {{stage}}"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(astro_mine_bench_evaluation_duration_seconds_bucket{scenario=~\"$scenario\"}[5m])))",
+          "legendFormat": "p95 {{stage}}"
+        },
+        {
+          "refId": "C",
+          "expr": "histogram_quantile(0.99, sum by (le, stage) (rate(astro_mine_bench_evaluation_duration_seconds_bucket{scenario=~\"$scenario\"}[5m])))",
+          "legendFormat": "p99 {{stage}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Evaluation throughput",
+      "description": "Submissions reaching a terminal state per second, by outcome (bench.md §10). The _count rate of the evaluation histogram is the fleet's real throughput.",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 10 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (rate(astro_mine_bench_submissions_total{scenario=~\"$scenario\"}[5m]))",
+          "legendFormat": "{{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Supply-chain verification failures (bench#29)",
+      "description": "Hub submissions rejected because their cosign signature, SLSA provenance, or SBOM did not verify. A sustained rise means either a broken publisher toolchain or someone pushing unsigned artifacts at the leaderboard.",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 10 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (rate(astro_mine_bench_supply_chain_verifications_total[5m]))",
+          "legendFormat": "{{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Authorization denials + sandbox terminations (bench#29 / bench#30)",
+      "description": "Left: authorization decisions by action and outcome — a spike in denials is an attack indicator or a misconfigured IdP. Right: how often a submission is killed by its sandbox envelope (timeout / memory / crash), which is both an abuse signal and a sign the envelope may be too tight for legitimate work.",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 10 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (action) (rate(astro_mine_bench_authz_decisions_total{decision=\"deny\"}[5m]))",
+          "legendFormat": "deny {{action}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (status) (rate(astro_mine_bench_sandbox_terminations_total[5m]))",
+          "legendFormat": "sandbox {{status}}"
+        }
+      ]
+    }
+  ]
+}

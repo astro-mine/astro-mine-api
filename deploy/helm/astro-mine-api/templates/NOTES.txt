@@ -1,0 +1,32 @@
+astro-mine-api {{ .Chart.AppVersion }} installed as {{ include "astro-mine-api.fullname" . }}.
+
+Surfaces mounted: {{ if .Values.surfaces }}{{ join ", " .Values.surfaces }}{{ else }}hub, studio, cloud, bench (all){{ end }}
+
+Reach it:
+
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "astro-mine-api.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+  curl http://localhost:{{ .Values.service.port }}/healthz
+
+{{- if not .Values.postgres.existingSecret }}
+
+WARNING: postgres.existingSecret is unset, so no store URLs were injected. The surfaces will fall
+back to their local defaults, which is not what you want in a cluster: Bench will not persist
+submissions and Hub's catalog will not answer similarity search. Create a Secret with keys
+{{ .Values.postgres.benchDbKey }}, {{ .Values.postgres.benchCatalogDsnKey }} and {{ .Values.postgres.hubUrlKey }}, then set postgres.existingSecret.
+{{- end }}
+
+{{- if or (not .Values.bench.oidcIssuer) (not .Values.bench.oidcAudience) }}
+
+NOTE: bench.oidcIssuer/oidcAudience are not both set, so every Bench WRITE route will answer 503.
+That is fail-closed by design (bench#29) -- "no IdP" never means "everyone is trusted". Reads (the
+board, scorecards, provenance, replays) stay account-free either way.
+{{- end }}
+
+{{- if not .Values.corsOrigins }}
+
+NOTE: corsOrigins is empty, so no browser origin may call this API. Set it to the front end's
+origin before pointing astro-mine-ui at this deployment.
+{{- end }}
+
+Before exposing this publicly, read the platform's TRUST_BOUNDARY.md §3: the default sandbox for
+submitted policies denies network egress but does not isolate the filesystem.

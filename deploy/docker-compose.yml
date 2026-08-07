@@ -1,0 +1,176 @@
+# The hosted tier — tier 2 of `conventions.md` §7.2, as one deployment (api.md §6; RM-DIST-03).
+#
+#   CORE_REPO_TOKEN=<gh token> docker compose up --build
+#   CORE_REPO_TOKEN=<gh token> docker compose --profile observability up --build   # + Prom/Grafana
+#   CORE_REPO_TOKEN=<gh token> docker compose --profile opa up --build             # + OPA sidecar
+#
+# This replaces two per-component stacks — `astro-mine-bench`'s leaderboard compose and
+# `astro-mine-hub`'s hosted-Hub compose. They stood up two FastAPI applications, two Postgres
+# instances and two OPA sidecars to serve surfaces that share one edge; one image serves all four
+# now, and `ASTRO_MINE_API_SURFACES` picks which are mounted (unset means all of them).
+#
+# **The local tier needs none of this**, and that is a requirement rather than an accident
+# (api.md §6, CX-LOCAL): Hub's tier-1 client against an OCI-layout directory, Bench's local
+# scoring, Cloud's local backend and Studio's library API all work with no service, no account and
+# no Docker. A change that makes this stack mandatory for a local workflow is a defect.
+#
+# **This is a deployment, not test scaffolding.** The platform's own integration suites bring up
+# their own services from its `docker-compose.yml`; the two are deliberately separate, because the
+# platform must be testable without this repository checked out.
+#
+# SECURITY (bench#29): the Bench write routes refuse with 503 until an OIDC issuer and audience are
+# configured — "no IdP" never means "everyone is trusted". Point it at yours:
+#
+#   ASTRO_MINE_BENCH_OIDC_ISSUER=https://keycloak.example/realms/astro-mine
+#   ASTRO_MINE_BENCH_OIDC_AUDIENCE=astro-mine-api
+#   ASTRO_MINE_BENCH_TRUSTED_KEY=/run/secrets/cosign.pub   # pin the submission signer (PUBLIC key)
+#
+# Read paths (the board, scorecards, provenance, replays, the registry) stay account-free either
+# way. Submitted policies execute in a sandbox (bench#30) — read the platform's TRUST_BOUNDARY.md
+# before exposing this to the public internet: the default SubprocessSandbox does not isolate the
+# filesystem, and a public deployment wants ContainerSandbox.
+services:
+  db:
+    # pgvector, not plain postgres: Hub's catalog creates a `vector(dim)` column with an HNSW index
+    # (hub.md §5) and Bench's scenario-zoo catalog indexes spec/version/lineage the same way
+    # (bench.md §5). One server, separate tables — the two stacks this replaces ran two.
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: astromine
+      POSTGRES_PASSWORD: astromine
+      POSTGRES_DB: astromine
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U astromine -d astromine"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      secrets:
+        - core_token
+    environment:
+      # Which surfaces to mount. Unset means all four; set it to run a Bench-only leaderboard or a
+      # Hub-only registry from the same image, with no rebuild.
+      ASTRO_MINE_API_SURFACES: ${ASTRO_MINE_API_SURFACES:-}
+      # The browser tier calls this API cross-origin; without this the front end cannot reach it.
+      ASTRO_MINE_API_CORS_ORIGINS: ${ASTRO_MINE_API_CORS_ORIGINS:-http://localhost:3000}
+
+      # --- Bench -----------------------------------------------------------------------------
+      # SqlStore + SqlAuditLog run the same code on this URL as the tests run on SQLite.
+      ASTRO_MINE_BENCH_DB: postgresql+psycopg://astromine:astromine@db:5432/astromine
+      # The Postgres/pgvector scenario-zoo catalog (bench#33). Seed it once the stack is up:
+      #   docker compose exec api uv run astro-mine bench zoo-sync --dsn "$ASTRO_MINE_BENCH_DB"
+      # Leave it unset to serve the packaged filesystem zoo instead (the tier-1 default).
+      ASTRO_MINE_BENCH_CATALOG_DSN: postgresql+psycopg://astromine:astromine@db:5432/astromine
+      # OIDC (bench#29). Unset => every Bench write route returns 503 (fail-closed, by design).
+      ASTRO_MINE_BENCH_OIDC_ISSUER: ${ASTRO_MINE_BENCH_OIDC_ISSUER:-}
+      ASTRO_MINE_BENCH_OIDC_AUDIENCE: ${ASTRO_MINE_BENCH_OIDC_AUDIENCE:-}
+      # An OPA sidecar evaluating deploy/policy/bench.rego (the `opa` profile below). Unset => the
+      # in-process RbacPolicyEngine, which enforces the same rules.
+      ASTRO_MINE_BENCH_OPA_URL: ${ASTRO_MINE_BENCH_OPA_URL:-}
+
+      # --- Hub -------------------------------------------------------------------------------
+      HUB_POSTGRES_URL: postgresql+psycopg://astromine:astromine@db:5432/astromine
+      # The OCI registry the Hub surface publishes to and resolves from.
+      ASTRO_MINE_HUB_REGISTRY: ${ASTRO_MINE_HUB_REGISTRY:-http://registry:5000}
+      # Hub's download-gating bundle ships *inside the wheel* and is read by the pure-Python
+      # evaluator by default (hub.md §9). Pointing this at the sidecar additionally requires
+      # serving that bundle from it — see the `opa` service note below.
+      HUB_OPA_URL: ${HUB_OPA_URL:-}
+
+      # --- Studio ----------------------------------------------------------------------------
+      ASTRO_MINE_STUDIO_CACHE: /var/cache/astro-mine-studio
+    depends_on:
+      db:
+        condition: service_healthy
+      registry:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    volumes:
+      - studiocache:/var/cache/astro-mine-studio
+
+  registry:
+    # OCI Distribution Spec registry — hub.md §11 recommends **Zot** as "the lean OCI-native
+    # self-host (built-in cosign/Referrers/sync)". Hub's RemoteRegistry speaks the Distribution
+    # Spec to it directly, and oras/skopeo/cosign interoperate unchanged.
+    image: ghcr.io/project-zot/zot-linux-amd64:v2.1.2
+    ports: ["5000:5000"]
+    volumes: ["zotdata:/var/lib/registry"]
+
+  minio:
+    # S3-compatible blob store — the registry's production backend, and Cloud's artifact store
+    # (`conventions.md` §5). Accountless here; a real deployment supplies credentials.
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports: ["9000:9000", "9001:9001"]
+    volumes: ["miniodata:/data"]
+
+  redis:
+    # The ephemeral job-status index behind Cloud's submission edge (RM-P1-CLOUD-06).
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # --- the authorization sidecar (bench#29; bench.md §9) ------------------------------------------
+  # The same rules the in-process RbacPolicyEngine applies, in Rego — so an operator can evolve
+  # policy without redeploying. Enable it by setting, on `api`:
+  #   ASTRO_MINE_BENCH_OPA_URL=http://opa:8181/v1/data/astromine/bench/decision
+  #
+  # This serves Bench's bundle only. Hub's download-gating bundle lives in the wheel
+  # (`astro_mine/hub/policy/rego`, read at runtime by the pure-Python evaluator) and is deliberately
+  # not copied here — one policy with two sources is how the two silently diverge. To gate Hub
+  # through this sidecar as well, mount that directory out of the image:
+  #   docker compose cp api:/app/.venv/lib/python3.12/site-packages/astro_mine/hub/policy/rego ./policy/hub
+  opa:
+    profiles: ["opa"]
+    image: openpolicyagent/opa:1.9.0
+    command: ["run", "--server", "--addr=0.0.0.0:8181", "/policy"]
+    volumes: ["./policy:/policy:ro"]
+    ports: ["8181:8181"]
+
+  # --- observability (bench#32; bench.md §10, conventions.md §10 / CX-OBS) -------------------------
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:latest
+    volumes: ["./prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9090:9090"]
+    depends_on:
+      - api
+
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:latest
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      # The submission-pipeline starter dashboard: queue depth, the re-execution mismatch rate (the
+      # key integrity signal), evaluation latency, and the authz / supply-chain / sandbox signals.
+      # A test asserts its PromQL names series the app actually exposes.
+      - ./grafana:/var/lib/grafana/dashboards:ro
+    ports: ["3000:3000"]
+    depends_on:
+      - prometheus
+
+volumes:
+  pgdata:
+  zotdata:
+  miniodata:
+  studiocache:
+
+# The private astro-mine-platform git dependency needs a token at build time during incubation.
+secrets:
+  core_token:
+    environment: CORE_REPO_TOKEN

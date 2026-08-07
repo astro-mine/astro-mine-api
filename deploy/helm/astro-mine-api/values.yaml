@@ -1,0 +1,95 @@
+# Astro-Mine REST tier values (api.md §6; conventions.md §7.2 tier 2).
+#
+# The local tier needs none of this. Hub's tier-1 client, Bench's local scoring, Cloud's local
+# backend and Studio's library API all work with no service running (CX-LOCAL) -- this chart is for
+# the hosted tier only.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/astro-mine/astro-mine-api
+  # Pin by digest before the repositories flip public (CX-REPRO). A tag is mutable, and "the image
+  # that was running" is the first question every incident asks.
+  tag: ""          # defaults to .Chart.AppVersion
+  digest: ""       # set this instead of tag in production: sha256:...
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# Which surfaces this deployment mounts. Empty means all four. Naming a subset is how one image
+# becomes a Bench-only leaderboard or a Hub-only registry -- a value, not a rebuild (api.md §1).
+surfaces: []       # e.g. ["hub", "bench"]
+
+# Browsers call this API cross-origin; the front end cannot reach it otherwise. There is no
+# wildcard default on purpose -- an unset origin list is a closed door, not an open one.
+corsOrigins: []    # e.g. ["https://console.example.org"]
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts: []
+  tls: []
+
+# --- the stores behind the tier (api.md §6) -------------------------------------------------
+# Supplied by the cluster. Each URL is read from a Secret rather than set inline: they carry
+# credentials, and a value in a Helm release is visible to anyone who can read the release.
+postgres:
+  # The Secret holding the connection URLs. Keys: bench-db, bench-catalog-dsn, hub-url.
+  existingSecret: ""
+  benchDbKey: bench-db
+  benchCatalogDsnKey: bench-catalog-dsn
+  hubUrlKey: hub-url
+
+hub:
+  # The OCI registry the Hub surface publishes to and resolves from.
+  registry: ""     # e.g. http://zot.astro-mine-system.svc:5000
+  opaUrl: ""       # empty => the in-wheel pure-Python evaluator (hub.md §9)
+
+bench:
+  # OIDC (bench#29). With issuer or audience unset, every Bench *write* route answers 503 --
+  # fail-closed by design. "No IdP" never means "everyone is trusted". Reads stay account-free.
+  oidcIssuer: ""
+  oidcAudience: ""
+  opaUrl: ""       # empty => the in-process RbacPolicyEngine, which enforces the same rules
+  # The PUBLIC key pinning the submission signer, mounted from a Secret.
+  trustedKeySecret: ""
+  trustedKeyKey: cosign.pub
+
+studio:
+  cacheSize: 10Gi
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    memory: 4Gi
+
+# The default runtime posture. Submitted policies execute out-of-process in a seccomp-filtered,
+# resource-capped child of this container (bench#30); that sandbox denies network egress but does
+# NOT isolate the filesystem, which is why the root filesystem is read-only here and the container
+# does not run as root. Read the platform's TRUST_BOUNDARY.md §3 before exposing this publicly.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+serviceMonitor:
+  # Scrapes /bench/metrics -- the only Prometheus endpoint on the tier today (bench.md §10).
+  enabled: false
+  interval: 15s

@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "astro-mine-api.fullname" . }}
+  labels:
+    {{- include "astro-mine-api.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "astro-mine-api.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "astro-mine-api.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: api
+          image: {{ include "astro-mine-api.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            # Unset means all four surfaces; a subset makes this one deployment a Bench-only
+            # leaderboard or a Hub-only registry from the same image (api.md §1).
+            - name: ASTRO_MINE_API_SURFACES
+              value: {{ join "," .Values.surfaces | quote }}
+            - name: ASTRO_MINE_API_CORS_ORIGINS
+              value: {{ join "," .Values.corsOrigins | quote }}
+            {{- if .Values.postgres.existingSecret }}
+            - name: ASTRO_MINE_BENCH_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.existingSecret }}
+                  key: {{ .Values.postgres.benchDbKey }}
+            - name: ASTRO_MINE_BENCH_CATALOG_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.existingSecret }}
+                  key: {{ .Values.postgres.benchCatalogDsnKey }}
+            - name: HUB_POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.existingSecret }}
+                  key: {{ .Values.postgres.hubUrlKey }}
+            {{- end }}
+            {{- with .Values.hub.registry }}
+            - name: ASTRO_MINE_HUB_REGISTRY
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.hub.opaUrl }}
+            - name: HUB_OPA_URL
+              value: {{ . | quote }}
+            {{- end }}
+            # Bench write routes answer 503 until both of these are set (bench#29). Reads do not.
+            {{- with .Values.bench.oidcIssuer }}
+            - name: ASTRO_MINE_BENCH_OIDC_ISSUER
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.bench.oidcAudience }}
+            - name: ASTRO_MINE_BENCH_OIDC_AUDIENCE
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.bench.opaUrl }}
+            - name: ASTRO_MINE_BENCH_OPA_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.bench.trustedKeySecret }}
+            - name: ASTRO_MINE_BENCH_TRUSTED_KEY
+              value: /etc/astro-mine/trust/{{ .Values.bench.trustedKeyKey }}
+            {{- end }}
+            - name: ASTRO_MINE_STUDIO_CACHE
+              value: /var/cache/astro-mine-studio
+          # `/healthz` is the composed app's own liveness route -- the one spelling every surface
+          # converged on (api.md §4). Readiness uses the same path: a surface that cannot reach its
+          # store reports itself unhealthy there rather than serving 503s to callers.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            # readOnlyRootFilesystem is on, so every path the app writes needs a volume.
+            - name: studio-cache
+              mountPath: /var/cache/astro-mine-studio
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.bench.trustedKeySecret }}
+            - name: trust
+              mountPath: /etc/astro-mine/trust
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: studio-cache
+          emptyDir:
+            sizeLimit: {{ .Values.studio.cacheSize }}
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.bench.trustedKeySecret }}
+        - name: trust
+          secret:
+            secretName: {{ .Values.bench.trustedKeySecret }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

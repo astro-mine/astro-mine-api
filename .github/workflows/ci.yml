@@ -4,6 +4,20 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The canary has to *run* to be a canary. api.md §7 makes this repository the platform's
+  # downstream check — "a platform change that breaks a route must break this repository's CI on
+  # the commit that makes it, not a release later" — and the floating `branch = "main"` pin is what
+  # makes that possible. It is not what makes it happen: nothing here reacts to a platform push, so
+  # a platform change that broke fourteen tests on 2026-08-05 sat undetected until an unrelated pull
+  # request two days later, where it read as that PR's fault (#26).
+  #
+  # A daily run bounds that to a day and attributes it correctly — a red scheduled build points at
+  # the platform, because nothing changed here. A `repository_dispatch` from the platform's own
+  # `main` would be tighter still, but needs a cross-repo *write* token; `CORE_REPO_TOKEN` is a read
+  # credential, and minting a write one to save a few hours is the wrong trade.
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read

@@ -57,7 +57,7 @@ from astro_mine.bench.sandbox import SandboxScorer
 from astro_mine.bench.scenario import ScenarioSpec
 from astro_mine.bench.zoo import ANCHOR_SCENARIO_ID, load_scenario
 from astro_mine.core.registry import PluginKind
-from astro_mine.core.registry.model import ManifestDocument, PluginManifest
+from astro_mine.core.registry.model import PluginManifest
 from astro_mine.hub.registry import Blob, Registry
 from astro_mine.hub.supply_chain import attest, generate_keypair
 from fastapi.testclient import TestClient
@@ -525,12 +525,20 @@ def _publish(
         outputs=["ActionBatch"],
         attributes={"entrypoint": entrypoint},
     )
-    document = ManifestDocument(manifest_version="0.1", manifest=manifest)
+    # The **bare** manifest, which is what every publisher in the platform writes (hub.md §2
+    # principle 2). This built a `ManifestDocument` envelope until #26; the envelope is the authored
+    # *file* format, not the stored config blob, and reading one back is what `load_plugin_manifest`
+    # now refuses.
+    #
+    # Unlike the hosted suite's fixture this does not go through `HubClient`, and cannot: publishing
+    # and attesting have to be separable here, because this file is *about* what happens when they
+    # come apart — `test_unsigned_submission_is_rejected` needs an artifact whose blobs all hash
+    # correctly and which carries no signature at all. `HubClient.publish` requires a key by design.
     published = registry.publish(
         name=name,
         version=version,
         kind="policy",
-        config=document.model_dump(mode="json"),
+        config=manifest.model_dump(mode="json"),
         layers=[Blob("application/vnd.astro-mine.policy.onnx.v1", b"onnx-model-bytes")],
     )
     return str(published.digest)

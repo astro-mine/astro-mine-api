@@ -106,14 +106,22 @@ def test_publish_seam_stays_503_without_a_signing_key(tmp_path: Path) -> None:
     assert terrain.wired
 
 
-def test_root_explains_how_to_build_when_ui_absent(tmp_path: Path) -> None:
+def test_root_points_at_the_front_end_when_ui_absent(tmp_path: Path) -> None:
+    """The root explains where the UI *is*, not how to build one that no longer exists.
+
+    This used to assert `"pnpm build" in response.text`, which is how the stale instruction
+    survived: the page told the reader to run `pnpm build:harness` in `ui/`, and the test held it
+    there. No repository has carried a `ui/` tree since RM-DIST-04, so following that advice sent a
+    user to a directory that is not present and a script that was never ported.
+    """
     app, report = _serve(tmp_path, ui_dir=tmp_path / "no-such-dist")
 
     assert not report.ui_mounted
     client = TestClient(app)
     response = client.get("/")
     assert response.status_code == 200  # not a 404
-    assert "pnpm build" in response.text
+    assert "astro-mine-ui" in response.text
+    assert "--ui-dir" in response.text
 
 
 def test_serves_the_built_ui_without_shadowing_the_api(tmp_path: Path) -> None:

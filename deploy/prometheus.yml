@@ -1,0 +1,23 @@
+# Prometheus scrape config for the REST tier (bench#32; bench.md §10; api.md §6).
+#
+#   docker compose --profile observability up
+#
+# It scraped `leaderboard:8000/metrics` when the Bench leaderboard was its own deployable. One
+# image serves every surface now (RM-DIST-03), so the target is the `api` service and the path
+# carries the Bench prefix the composed app mounts it under. Grafana provisions the starter
+# dashboard in deploy/grafana/ against this datasource.
+#
+# Bench is the only surface exposing a Prometheus endpoint today. When another does, add a job
+# here rather than widening this one: the `component` label is what the dashboard filters on.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: astro-mine-bench-leaderboard
+    metrics_path: /bench/metrics
+    static_configs:
+      - targets: ["api:8000"]
+        labels:
+          component: bench
+          tier: hosted

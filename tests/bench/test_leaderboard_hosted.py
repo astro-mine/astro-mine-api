@@ -26,6 +26,7 @@ Plus unit coverage of the object store, job lifecycle, and rate limiter backends
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -52,9 +53,10 @@ from astro_mine.bench.sandbox import SandboxScorer, SubprocessSandbox
 from astro_mine.bench.scenario import ScenarioSpec
 from astro_mine.bench.zoo import ANCHOR_SCENARIO_ID, load_scenario
 from astro_mine.core.registry import PluginKind
-from astro_mine.core.registry.model import ManifestDocument, PluginManifest
+from astro_mine.core.registry.model import PluginManifest
+from astro_mine.hub.client import HubClient
 from astro_mine.hub.registry import Blob, Registry
-from astro_mine.hub.supply_chain import attest, generate_keypair
+from astro_mine.hub.supply_chain import generate_keypair
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
@@ -101,6 +103,15 @@ def _publish_policy(
 
     The config blob is a real Core plugin manifest whose ``entrypoint`` attribute the reference
     policy loader resolves; the ONNX bytes are a payload layer (verified fail-closed on intake).
+
+    **Published through `HubClient`, not `registry.publish`.** This fixture used to build the config
+    blob itself, as a `ManifestDocument` envelope — and every publisher in the platform writes a
+    *bare* `PluginManifest` (hub.md §2 principle 2). Both sides were internally consistent, so this
+    suite stayed green while the whole Hub-intake path could not accept a single real artifact; it
+    surfaced only when a deployment was seeded for real (#14, astro-mine-platform#14). A fixture
+    that constructs the bytes it is about to parse asserts that a function is its own inverse and
+    nothing else. Going through the client means this suite cannot disagree with the platform about
+    the shape again — the client owns it.
     """
     manifest = PluginManifest(
         name=name,
@@ -111,26 +122,66 @@ def _publish_policy(
         outputs=["ActionBatch"],
         attributes={"entrypoint": entrypoint},
     )
-    document = ManifestDocument(manifest_version="0.1", manifest=manifest)
+    artifact_kind = PluginKind.POLICY.value if kind is PluginKind.POLICY else "world"
+    layers = [Blob("application/vnd.astro-mine.policy.onnx.v1", onnx_layer)]
+    if attested:
+        # bench#29: a Hub submission must carry a cosign signature + SLSA provenance + an SBOM
+        # before it is allowed to execute. `HubClient.publish` signs, attests and verifies at
+        # admission in one step, which is what a real producer does.
+        private_pem, _ = generate_keypair()
+        published = HubClient(registry).publish(
+            name=name,
+            version=version,
+            kind=artifact_kind,
+            manifest=manifest,
+            layers=layers,
+            private_key_pem=private_pem,
+        )
+        return str(published.digest)
+    # The unsigned case reaches past the client deliberately: `private_key_pem` is required there,
+    # because hub.md §9 defines no namespace tier for unsigned content. Publishing without it is
+    # precisely what a submission that fails verification looks like, so it has to be built by hand
+    # — but from the *same* bare manifest the client would have written.
     published = registry.publish(
         name=name,
         version=version,
-        kind=PluginKind.POLICY.value if kind is PluginKind.POLICY else "world",
-        config=document.model_dump(mode="json"),
-        layers=[Blob("application/vnd.astro-mine.policy.onnx.v1", onnx_layer)],
+        kind=artifact_kind,
+        config=manifest.model_dump(mode="json"),
+        layers=layers,
     )
-    if attested:
-        # bench#29: a Hub submission must carry a cosign signature + SLSA provenance + an SBOM
-        # before it is allowed to execute. Publishing without attesting (attested=False) is what a
-        # submission that fails verification looks like.
-        private_pem, _ = generate_keypair()
-        attest(registry, published.digest, private_key_pem=private_pem, name=name, version=version)
     return published.digest
 
 
 @pytest.fixture
 def registry(tmp_path: Path) -> Registry:
     return Registry(tmp_path / "hub-registry")
+
+
+def test_the_hand_built_config_blob_matches_what_the_publisher_writes(registry: Registry) -> None:
+    """The unsigned path builds its config by hand; this pins it to the client's shape.
+
+    `_publish_policy(attested=True)` goes through `HubClient` and so cannot get the shape wrong. The
+    unsigned branch cannot use the client — a key is required there by design — and neither can
+    `test_leaderboard_security`'s `_publish`, which needs publish and attest to be separable. Those
+    two are where the envelope bug lived, and where it could come back.
+
+    So they are checked against the real publisher's output rather than against a description of it.
+    The platform asserts the same contract from its own side, in
+    `tests/platform/test_config_blob_contract`; this asserts that *this suite's fixtures* still
+    agree with it, which is the half that was wrong.
+    """
+    signed = _publish_policy(registry, name="acme/signed", interfaces={"observation": "0.1.0"})
+    unsigned = _publish_policy(
+        registry, name="acme/unsigned", interfaces={"observation": "0.1.0"}, attested=False
+    )
+
+    from_client = json.loads(registry.read_config(signed))
+    by_hand = json.loads(registry.read_config(unsigned))
+
+    # hub.md §2 principle 2: the stored config blob *is* the manifest. No envelope to reach through.
+    assert "manifest_version" not in by_hand
+    assert "manifest" not in by_hand
+    assert by_hand.keys() == from_client.keys()
 
 
 @pytest.fixture
@@ -497,12 +548,14 @@ def test_a_manifest_without_an_entrypoint_is_rejected(
         kind=PluginKind.POLICY,
         core_interfaces=dict(anchor.core_interface),
     )
-    document = ManifestDocument(manifest_version="0.1", manifest=manifest)
+    # The bare manifest, as every publisher writes it (hub.md §2 principle 2). Built by hand rather
+    # than through `HubClient` because this artifact is deliberately malformed for Bench's purposes
+    # — it has no `entrypoint` — and the point is what `submission_policy_ref` does with it.
     published = registry.publish(
         name="acme/no-entry",
         version="1.0.0",
         kind="policy",
-        config=document.model_dump(mode="json"),
+        config=manifest.model_dump(mode="json"),
     )
     resolved = resolve_submission(registry, published.digest)
     with pytest.raises(HubResolutionError, match="no 'entrypoint'"):

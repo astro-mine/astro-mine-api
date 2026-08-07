@@ -1,0 +1,23 @@
+apiVersion: v2
+name: astro-mine-api
+description: >-
+  The Astro-Mine REST tier -- one Deployment serving the Hub registry API, the Studio API, Cloud's
+  submission edge and the Bench leaderboard as route modules over the platform library. Which
+  surfaces are mounted is a value, not a build. See docs/architecture/api.md.
+type: application
+# SemVer'd per conventions.md §7, §13; appVersion tracks the astro-mine-api wheel and its image.
+version: 0.1.0
+appVersion: 0.1.0
+kubeVersion: ">=1.29.0-0"
+keywords:
+  - astro-mine
+  - rest
+  - fastapi
+  - openapi
+home: https://github.com/astro-mine/astro-mine-api
+sources:
+  - https://github.com/astro-mine/astro-mine-api
+# No dependencies, deliberately. This chart installs the *tier*; the stores behind it (Postgres
+# with pgvector, object storage, Redis -- api.md §6) are supplied by the cluster, because a
+# production operator has opinions about them that a subchart would quietly override. The compose
+# stack in this directory is what stands them up for a laptop.

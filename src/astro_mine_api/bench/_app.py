@@ -30,7 +30,7 @@ layer, SQL, auth, authorization, evaluation, provenance and audit modules — st
 ``astro_mine.bench.leaderboard`` in the platform, which is where it would live even with no HTTP
 in the picture (api.md §2).
 
-Backlog: RM-P1-BENCH-10 — https://github.com/astro-mine/astro-mine-bench/issues/18;
+Backlog: RM-P1-BENCH-10 — astro-mine-bench#18;
 bench#29, bench#30, bench#32
 """
 

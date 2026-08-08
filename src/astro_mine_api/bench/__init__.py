@@ -8,7 +8,7 @@ make sense with no HTTP in the picture (api.md §2).
 Ported from ``astro_mine.bench.leaderboard._app`` (astro-mine-bench) — see
 :mod:`astro_mine_api.bench._app`.
 
-Backlog: RM-P1-BENCH-10 — https://github.com/astro-mine/astro-mine-bench/issues/18
+Backlog: RM-P1-BENCH-10 — astro-mine-bench#18
 """
 
 from __future__ import annotations

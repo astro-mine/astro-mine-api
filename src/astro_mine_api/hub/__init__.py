@@ -7,7 +7,7 @@ a deployment that serves more than one surface in a process.
 
 Ported from ``astro_mine.hub.api`` (astro-mine-hub) — see :mod:`astro_mine_api.hub._app`.
 
-Backlog: RM-P1-HUB-02 — https://github.com/astro-mine/astro-mine-hub/issues/2
+Backlog: RM-P1-HUB-02 — astro-mine-hub#2
 """
 
 from __future__ import annotations

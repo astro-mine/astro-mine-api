@@ -8,7 +8,7 @@ Run it with an ASGI server, e.g. ``uvicorn --factory astro_mine_api.cloud.app:cr
 
 Ported from ``astro_mine.cloud.serve`` (astro-mine-cloud) -- see :mod:`astro_mine_api.cloud.app`.
 
-Backlog: RM-P1-CLOUD-02 -- https://github.com/astro-mine/astro-mine-cloud/issues/13
+Backlog: RM-P1-CLOUD-02 -- astro-mine-cloud#13
 """
 
 from __future__ import annotations

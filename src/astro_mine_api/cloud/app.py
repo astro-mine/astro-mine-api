@@ -11,7 +11,7 @@ factory is gone: it existed so the base ``astro-mine-cloud`` wheel could import 
 ``[serve]`` extra, and in this distribution FastAPI is a base dependency -- there is no install
 of astro-mine-api that lacks it.
 
-Backlog: RM-P1-CLOUD-02 -- https://github.com/astro-mine/astro-mine-cloud/issues/13
+Backlog: RM-P1-CLOUD-02 -- astro-mine-cloud#13
 """
 
 from __future__ import annotations

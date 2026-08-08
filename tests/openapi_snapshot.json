@@ -2277,6 +2277,7 @@
             "items": {
               "$ref": "#/components/schemas/CampaignPhase"
             },
+            "minItems": 1,
             "title": "Phases",
             "type": "array"
           },

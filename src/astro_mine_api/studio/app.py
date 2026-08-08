@@ -118,8 +118,15 @@ class PublishCampaignRequest(StudioModel):
     campaign: Campaign | None = None
     objective: ObjectiveDocument | None = None
     chosen: EvaluatedCandidate | None = None
+    #: ``min_length=1`` mirrors ``Campaign.phases``, and mirroring it *here* is what makes the
+    #: refusal useful: FastAPI rejects at the edge with the standard problem document and a
+    #: populated ``errors`` array, so a form can mark the offending field. Without it an explicit
+    #: ``[]`` passed the edge and died inside `author_campaign`, where the failure had no field to
+    #: point at and answered 500 (#21). A default is not a constraint — the default here is
+    #: non-empty, which is exactly why the gap went unnoticed.
     phases: list[CampaignPhase] = Field(
-        default_factory=lambda: [CampaignPhase(id="phase-1", name="Prospect")]
+        default_factory=lambda: [CampaignPhase(id="phase-1", name="Prospect")],
+        min_length=1,
     )
     #: The world the design was inspected against, so the published campaign records it.
     world_ref: str | None = None
@@ -314,17 +321,28 @@ def build_router(
         return build_comparison(study)
 
     def _resolve_campaign(request: PublishCampaignRequest) -> Campaign:
-        """A fully-formed campaign, or one authored from the journey's chosen candidate."""
+        """A fully-formed campaign, or one authored from the journey's chosen candidate.
+
+        The ``ValidationError`` arm is the general case behind the field constraint above. This
+        route hands caller-supplied fields to a *domain* constructor, so any of them the model
+        refuses raises here — and a `pydantic` error is not FastAPI's request-validation error, so
+        nothing upstream converts it and the caller gets a 500 for their own bad input (#21).
+        Mirroring one field in the request model fixes the case we know about; this covers the ones
+        we do not, and it is the same arm `POST /intent` already has twelve lines above.
+        """
         if request.campaign is not None:
             return request.campaign
         if request.chosen is not None and request.objective is not None:
-            return author_campaign(
-                request.objective,
-                request.chosen,
-                name=request.name,
-                phases=request.phases,
-                world_ref=request.world_ref,
-            )
+            try:
+                return author_campaign(
+                    request.objective,
+                    request.chosen,
+                    name=request.name,
+                    phases=request.phases,
+                    world_ref=request.world_ref,
+                )
+            except ValidationError as exc:
+                raise ApiError(ErrorCode.VALIDATION_FAILED, str(exc)) from exc
         raise ApiError(
             ErrorCode.VALIDATION_FAILED,
             "provide either `campaign`, or `chosen` + `objective` to author one",

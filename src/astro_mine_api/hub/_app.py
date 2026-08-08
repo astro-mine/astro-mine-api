@@ -38,7 +38,7 @@ from astro_mine.hub.resolve import ResolutionError, ResolutionRequest, resolve
 from astro_mine.hub.search import SearchQuery, search
 from astro_mine.hub.supply_chain import SupplyChainError, admit
 from fastapi import APIRouter, FastAPI, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from astro_mine_api import __version__
 from astro_mine_api._cors import add_cors
@@ -290,7 +290,14 @@ def build_router(
                 f"admitted to 'open' and reach a trusted tier only through an audited "
                 f"promotion that verifies their evidence",
             )
-        manifest = PluginManifest.model_validate(body.manifest)
+        # `body.manifest` is an untyped mapping the caller supplies, so this is the same shape as
+        # #21: a *domain* model constructed from caller input, whose `ValidationError` is not
+        # FastAPI's request-validation error and reaches no handler. A manifest that will not parse
+        # is the caller's mistake and answers 422, not 500.
+        try:
+            manifest = PluginManifest.model_validate(body.manifest)
+        except ValidationError as exc:
+            raise ApiError(ErrorCode.VALIDATION_FAILED, str(exc)) from exc
         try:
             entry = admit(
                 registry,

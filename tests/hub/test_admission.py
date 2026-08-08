@@ -269,3 +269,29 @@ def test_promotion_reaches_the_same_gate(tmp_path: Path) -> None:
 
     with pytest.raises(CurationError, match="does not verify"):
         promote(catalog, "pol:1.0.0", to="verified", registry=registry)
+
+
+def test_publish_endpoint_rejects_a_malformed_manifest_as_422(tmp_path: Path) -> None:
+    """The second instance of #21: a domain model built from a caller-supplied mapping.
+
+    `body.manifest` is an untyped object, so FastAPI validates the *envelope* and not the manifest
+    inside it. `PluginManifest.model_validate` therefore raises a pydantic error that is not
+    FastAPI's request-validation error, reaches no handler, and answered 500 — telling the caller
+    the server broke when in fact they sent an unparseable manifest.
+
+    Asserted as a status rather than a message: a 500 makes a client retry and page someone, and
+    neither response is right for input that will never parse however many times it is sent.
+    """
+    client, registry = _client(tmp_path)
+    _, digest = _signed(registry)
+    response = client.post(
+        "/hub/publish",
+        json={
+            "manifest": {"name": "pol", "kind": "not-a-real-kind"},  # missing fields, bad enum
+            "digest": digest,
+            "publisher": "mallory",
+        },
+    )
+    assert response.status_code == 422, response.text
+    assert response.json()["code"] == "validation_failed"
+    assert client.get("/hub/artifacts/pol/1.0.0").status_code == 404

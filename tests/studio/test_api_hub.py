@@ -167,6 +167,37 @@ class TestPublishRoutes:
         assert response.status_code == 200, response.text
         assert response.json()["kind"] == "campaign"
 
+    def test_empty_phases_is_a_422_not_a_500(
+        self, app_client: TestClient, objective_doc: ObjectiveDocument, clients: SiblingClients
+    ) -> None:
+        """A field the caller supplies that the domain model refuses is *their* error (#21).
+
+        `PublishCampaignRequest.phases` had no constraint while `Campaign.phases` requires at least
+        one, so an explicit `[]` passed the edge and raised inside `author_campaign` — a pydantic
+        error that is not FastAPI's request-validation error, so nothing converted it and the caller
+        got a 500 for their own input. The status is the assertion that matters: a 500 tells a
+        client to retry and page someone, and neither is right here.
+        """
+        candidate = DesignCandidate(id="c1", swarm=[AssetSelection(sadf_ref=ROVER_REF, count=2)])
+        chosen = evaluate_candidate(candidate, objective_doc, clients=clients, seed=3)
+        response = app_client.post(
+            "/studio/campaigns/publish",
+            json={
+                "name": "ice",
+                "version": "0.9.0",
+                "objective": objective_doc.model_dump(mode="json"),
+                "chosen": chosen.model_dump(mode="json"),
+                "phases": [],
+            },
+        )
+        assert response.status_code == 422, response.text
+        problem = response.json()
+        assert problem["code"] == "validation_failed"
+        # Rejected at the edge, so the field-level detail a form needs is present -- which is why
+        # the request model mirrors the constraint rather than relying on the handler's catch.
+        assert problem["errors"], problem
+        assert any("phases" in str(item) for item in problem["errors"]), problem
+
     def test_publish_without_a_campaign_or_chosen_is_422(self, app_client: TestClient) -> None:
         response = app_client.post(
             "/studio/campaigns/publish", json={"name": "x", "version": "0.1.0"}

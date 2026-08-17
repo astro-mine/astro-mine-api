@@ -84,8 +84,11 @@ Issues = "https://github.com/astro-mine/astro-mine-api/issues"
 # platform's own downstream canary: a platform change that breaks a route must break this
 # repository's CI on the commit that makes it, not a release later.
 #
-# This is the one repository in the workspace where a floating dependency is the requirement
-# rather than a smell. Do not "fix" it to a rev by copy-paste from astro-mine-cli.
+# A floating dependency is the requirement here rather than a smell. This used to add "do not fix it
+# to a rev by copy-paste from astro-mine-cli" -- which stopped being useful advice when the CLI
+# adopted this same pattern (astro-mine-cli#36). Its rev pin was twenty commits stale by then, and
+# moving to HEAD turned 576 green tests into 25 failures that had each been true for days, which is
+# the argument for this pin stated as a measurement rather than a warning.
 astro-mine-platform = { git = "https://github.com/astro-mine/astro-mine-platform.git", branch = "main" }
 
 [dependency-groups]

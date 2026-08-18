@@ -61,7 +61,7 @@ def _publish_signed(registry_root: Path, catalog_url: str) -> tuple[str, str]:
     """
     private_pem, _ = generate_keypair()
     manifest = PluginManifest(
-        name="demo.policy",
+        name="demo-policy",
         version="1.0.0",
         kind=PluginKind.POLICY,
         core_interfaces={"policy": "0.1.0"},
@@ -70,14 +70,14 @@ def _publish_signed(registry_root: Path, catalog_url: str) -> tuple[str, str]:
     )
     client = HubClient(Registry(registry_root), catalog=sql_catalog(catalog_url))
     artifact = client.publish(
-        name="demo.policy",
+        name="demo-policy",
         version="1.0.0",
         kind="policy",
         manifest=manifest,
         private_key_pem=private_pem,
         publisher="tests",
     )
-    return "demo.policy:1.0.0", artifact.digest
+    return "demo-policy:1.0.0", artifact.digest
 
 
 # --- api#15: the catalog fallback ----------------------------------------------------------------

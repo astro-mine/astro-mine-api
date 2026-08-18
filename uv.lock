@@ -160,7 +160,7 @@ dev = [
 [[package]]
 name = "astro-mine-platform"
 version = "0.1.0"
-source = { git = "https://github.com/astro-mine/astro-mine-platform.git?branch=main#a6ed0a827e57b8d8db8fc4dbbdaa636e87c8d14e" }
+source = { git = "https://github.com/astro-mine/astro-mine-platform.git?branch=main#6a842cb44fb36ca3a40ed1033f9818d5fbfa8c36" }
 dependencies = [
     { name = "cryptography" },
     { name = "gpytorch" },

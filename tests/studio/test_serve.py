@@ -42,7 +42,7 @@ def _registry_with_anchor_keys(tmp_path: Path) -> tuple[Path, Path, Path]:
     publish_asset(
         reg,
         private_pem,
-        asset_id="astro-mine.fleet.hopper",
+        asset_id="hopper",
         kind="hopper",
         name="Hopper Mk1",
         tags=[CapabilityTag("mobility.wheeled")],
@@ -159,7 +159,7 @@ def test_serve_pins_the_example_campaign_idempotently(tmp_path: Path) -> None:
     publish_asset(
         Registry(reg_path),
         signing.read_bytes(),
-        asset_id="astro-mine.fleet.prospecting-rover",
+        asset_id="prospecting-rover",
         kind="rover",
         name="Prospecting Rover",
         tags=[CapabilityTag("mobility.wheeled")],

@@ -150,7 +150,7 @@ def test_studio_wires_its_seams_from_a_configured_registry(
     publish_asset(
         registry,
         private_pem,
-        asset_id="astro-mine.fleet.hopper",
+        asset_id="hopper",
         kind="hopper",
         name="Hopper Mk1",
         tags=[CapabilityTag("mobility.wheeled")],

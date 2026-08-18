@@ -90,10 +90,20 @@ SEED_MANIFEST = "seed.json"
 # something to resolve between (a single version makes `/hub/resolve` look like it works when all it
 # did was echo); three assets with different capability tags so the asset menu's tag filter has
 # something to filter; one world so terrain has a front door.
+#
+# Every name below is a **registry** name and so obeys `conventions.md` §13 -- bare kebab-case, no
+# component prefix, no version in the name. `HubClient.publish` enforces it, so a legacy-shaped name
+# here does not seed a badly-named artifact, it fails the seeder outright.
+#
+# The asset ids are the *shipped* Fleet library's, migrated with it -- and that is load-bearing, not
+# cosmetic. `seed_studio` publishes the platform's example campaign, which pins
+# `prospecting-rover:0.1.0` (`astro_mine.studio.seed`); a stand-in under any other name leaves that
+# pin unresolvable and the seeder dies on `ArtifactNotFound`. The same coupling held before the
+# migration, when both sides read `astro-mine.fleet.prospecting-rover` -- so the two move together.
 
 ASSETS: tuple[dict[str, Any], ...] = (
     {
-        "id": "astro-mine.fleet.prospecting-rover",
+        "id": "prospecting-rover",
         "kind": "rover",
         "name": "Prospecting Rover (demo stand-in)",
         "tags": [
@@ -104,7 +114,7 @@ ASSETS: tuple[dict[str, Any], ...] = (
         ],
     },
     {
-        "id": "astro-mine.fleet.excavator",
+        "id": "excavator",
         "kind": "excavator",
         "name": "Excavator (demo stand-in)",
         "tags": [
@@ -114,7 +124,7 @@ ASSETS: tuple[dict[str, Any], ...] = (
         ],
     },
     {
-        "id": "astro-mine.fleet.hauler",
+        "id": "hauler",
         "kind": "hauler",
         "name": "Hauler (demo stand-in)",
         "tags": [
@@ -125,7 +135,14 @@ ASSETS: tuple[dict[str, Any], ...] = (
     },
 )
 
-POLICY_ID = "astro-mine.mind.lawnmower-survey"
+#: Bare kebab-case, per conventions.md §13, and used as *both* the registry name and the manifest
+#: name. §13 says the two are different things and that only the registry name is constrained --
+#: true of the schema, but a deployment cannot exercise the difference: `HubClient.publish` stores
+#: under the registry name and indexes the *manifest* under `admit`, and every read route the
+#: console calls (`/hub/search`, `/hub/resolve`, `/hub/artifacts/{name}`) goes through the catalog.
+#: Give them different values and the artifact is searchable under one name and resolvable under
+#: the other. A demo deployment is the wrong place to demonstrate that, so they agree here.
+POLICY_ID = "lawnmower-survey"
 POLICY_VERSIONS = ("0.1.0", "0.2.0")
 
 #: Every Core interface the anchor scenario pins, declared on the published policy so the artifact
@@ -152,7 +169,7 @@ POLICY_INTERFACES = {
     "registry": "0.1.0",
 }
 
-WORLD_ID = "shackleton-demo-v1"
+WORLD_ID = "shackleton-demo"
 WORLD_NAME = "Shackleton rim (demo stand-in)"
 
 #: Shackleton's rim, near enough. Real coordinates on a synthetic bundle: the anchor is what places

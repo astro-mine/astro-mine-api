@@ -17,6 +17,7 @@ the cost of the thing being real, and the alternative is a fixture nobody can tr
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import json
 import subprocess
@@ -124,6 +125,63 @@ def test_the_deployment_mounts_every_surface(client: TestClient) -> None:
     assert set(body["surfaces"]) == {"hub", "studio", "cloud", "bench"}
 
 
+def test_every_seeded_name_obeys_the_artifact_name_rule() -> None:
+    """`conventions.md` §13, checked against the platform's own predicate rather than a regex here.
+
+    Cheap and independent of the `seeded` fixture on purpose: `HubClient.publish` enforces §13, so
+    a legacy-shaped name does not seed a badly-named artifact, it kills the seeder outright and
+    takes every other test in this module down as a fixture error. That is what the artifact-name
+    migration did on the day it landed. This one fails in milliseconds and names the offender.
+    """
+    from astro_mine.hub.registry import is_valid_artifact_name
+
+    names = {
+        "WORLD_ID": seed_demo.WORLD_ID,
+        "POLICY_ID": seed_demo.POLICY_ID,
+        **{f"ASSETS[{i}]": asset["id"] for i, asset in enumerate(seed_demo.ASSETS)},
+    }
+    bad = {where: name for where, name in names.items() if not is_valid_artifact_name(name)}
+    assert not bad, f"names violating conventions.md §13: {bad}"
+
+
+def test_the_seeded_assets_satisfy_the_example_campaign_s_pins() -> None:
+    """The coupling that a rename breaks silently until the seeder dies on `ArtifactNotFound`.
+
+    `seed_studio` publishes the platform's example campaign, and that campaign pins its swarm by
+    reference (`astro_mine.studio.seed`). The seeder is what puts those assets in the registry, so
+    the two sets of names have to agree -- and nothing else in this repository says so. Asserted
+    against the platform's campaign rather than a copied literal, so the platform moving its pin
+    fails here on the next canary rather than in a demo bring-up.
+    """
+    from astro_mine.studio.seed import _author_example
+
+    def sadf_refs(node: Any) -> Iterator[str]:
+        """Every `sadf_ref` anywhere in the campaign, found by walking rather than by path.
+
+        The pins sit in two different places today (the objective's `inventory` and each design
+        candidate's `swarm`) and a third would be added without anyone thinking of this test. A
+        walk cannot go stale against the model's shape; a hard-coded path can, and would go stale
+        by silently finding nothing, which is the failure this test exists to catch.
+        """
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key == "sadf_ref" and isinstance(value, str):
+                    yield value
+                else:
+                    yield from sadf_refs(value)
+        elif isinstance(node, list | tuple):
+            for item in node:
+                yield from sadf_refs(item)
+
+    campaign = asyncio.run(_author_example())
+    pinned = set(sadf_refs(campaign.model_dump(mode="json")))
+    assert pinned, "found no pins to check -- the walk went stale, not the campaign"
+
+    seeded_refs = {f"{asset['id']}:0.1.0" for asset in seed_demo.ASSETS}
+    missing = sorted(pinned - seeded_refs)
+    assert not missing, f"the example campaign pins assets the seeder never publishes: {missing}"
+
+
 def test_the_registry_is_searchable(client: TestClient, seeded: dict[str, Any]) -> None:
     """UC-G2 — the registry browse and search pages (`ui#10`).
 
@@ -132,7 +190,7 @@ def test_the_registry_is_searchable(client: TestClient, seeded: dict[str, Any]) 
     a configured one; ``test_composition.py`` drives it against the default.
     """
     hits = client.get("/hub/search", params={"text": "rover"}).json()
-    assert [hit["reference"] for hit in hits] == ["astro-mine.fleet.prospecting-rover:0.1.0"]
+    assert [hit["reference"] for hit in hits] == ["prospecting-rover:0.1.0"]
 
     policies = client.get("/hub/search", params={"kind": "policy"}).json()
     assert {hit["reference"] for hit in policies} == set(seeded["hub"]["policies"])
@@ -145,7 +203,7 @@ def test_an_artifact_carries_its_identity_and_its_attestations(client: TestClien
     happened, so the page distinguishes *evidence present in a registry* from *a verified supply
     chain*. It can only make that distinction against an artifact that actually carries evidence.
     """
-    detail = client.get("/hub/artifacts/astro-mine.mind.lawnmower-survey/0.2.0").json()
+    detail = client.get("/hub/artifacts/lawnmower-survey/0.2.0").json()
     assert detail["digest"].startswith("sha256:")
     assert detail["version"] == "0.2.0"
     # HubClient.publish signs and attaches all three; anything less would mean admission let an
@@ -159,7 +217,7 @@ def test_a_version_range_resolves_to_a_pinned_digest(client: TestClient) -> None
     """UC-G3 — the resolve page (`ui#11`): a tag is a query, the digest is the identity."""
     resolved = client.post(
         "/hub/resolve",
-        json={"name": "astro-mine.mind.lawnmower-survey", "version_spec": ">=0.1.0"},
+        json={"name": "lawnmower-survey", "version_spec": ">=0.1.0"},
     ).json()
     # Two versions were published precisely so this has something to choose between.
     assert resolved["version"] == "0.2.0"
@@ -177,7 +235,7 @@ def test_the_design_surface_has_assets_a_world_and_a_campaign(
     excavators = client.get(
         "/studio/catalog/assets", params={"requires": ["excavation.bucket"]}
     ).json()
-    assert [asset["reference"] for asset in excavators] == ["astro-mine.fleet.excavator:0.1.0"]
+    assert [asset["reference"] for asset in excavators] == ["excavator:0.1.0"]
 
     worlds = client.get("/studio/catalog/worlds").json()
     assert [world["reference"] for world in worlds] == seeded["hub"]["worlds"]

@@ -62,9 +62,7 @@ def make_scenario_spec(**overrides: Any) -> ScenarioSpec:
         "core_interface": {"env": "0.1.0", "messages": "0.1.0"},
         "content": ContentPins(
             world=ContentRef(id="shackleton-v1", content_hash=sha256_of("a")),
-            fleet=(
-                ContentRef(id="astro-mine.fleet.prospecting-rover", content_hash=sha256_of("b")),
-            ),
+            fleet=(ContentRef(id="prospecting-rover", content_hash=sha256_of("b")),),
             prospect=(ContentRef(id="ice-prior-v1", content_hash=sha256_of("c")),),
         ),
         "seeds": SeedSet(public=(1, 2, 3)),

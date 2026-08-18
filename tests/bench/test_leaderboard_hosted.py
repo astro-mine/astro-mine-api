@@ -170,9 +170,9 @@ def test_the_hand_built_config_blob_matches_what_the_publisher_writes(registry: 
     `tests/platform/test_config_blob_contract`; this asserts that *this suite's fixtures* still
     agree with it, which is the half that was wrong.
     """
-    signed = _publish_policy(registry, name="acme/signed", interfaces={"observation": "0.1.0"})
+    signed = _publish_policy(registry, name="acme-signed", interfaces={"observation": "0.1.0"})
     unsigned = _publish_policy(
-        registry, name="acme/unsigned", interfaces={"observation": "0.1.0"}, attested=False
+        registry, name="acme-unsigned", interfaces={"observation": "0.1.0"}, attested=False
     )
 
     from_client = json.loads(registry.read_config(signed))
@@ -204,7 +204,7 @@ def _client(service: LeaderboardService) -> TestClient:
 def test_hub_digest_intake_scores_and_ranks(
     service: LeaderboardService, registry: Registry, anchor: ScenarioSpec, idp: TestIdp
 ) -> None:
-    digest = _publish_policy(registry, name="acme/prospector", interfaces=anchor.core_interface)
+    digest = _publish_policy(registry, name="acme-prospector", interfaces=anchor.core_interface)
     client = _client(service)
 
     response = client.post(
@@ -237,12 +237,12 @@ def test_hub_digest_intake_scores_and_ranks(
 def test_hub_intake_by_name_version_tag(
     service: LeaderboardService, registry: Registry, anchor: ScenarioSpec, idp: TestIdp
 ) -> None:
-    _publish_policy(registry, name="lab/policy", version="2.1.0", interfaces=anchor.core_interface)
+    _publish_policy(registry, name="lab-policy", version="2.1.0", interfaces=anchor.core_interface)
     job = (
         _client(service)
         .post(
             "/bench/submissions/hub",
-            json={"scenario_id": ANCHOR_SCENARIO_ID, "hub_ref": "lab/policy:2.1.0"},
+            json={"scenario_id": ANCHOR_SCENARIO_ID, "hub_ref": "lab-policy:2.1.0"},
             headers=idp.header(),
         )
         .json()
@@ -259,7 +259,7 @@ def test_manifest_interface_mismatch_is_rejected(
     # A policy built against a future major of the env interface cannot satisfy the scenario.
     bad = dict(anchor.core_interface)
     bad[next(iter(bad))] = "9.0.0"
-    digest = _publish_policy(registry, name="acme/future", interfaces=bad)
+    digest = _publish_policy(registry, name="acme-future", interfaces=bad)
     response = _client(service).post(
         "/bench/submissions/hub",
         json={"scenario_id": ANCHOR_SCENARIO_ID, "hub_ref": digest},
@@ -273,7 +273,7 @@ def test_manifest_interface_mismatch_is_rejected(
 def test_non_policy_artifact_is_rejected(registry: Registry, anchor: ScenarioSpec) -> None:
     digest = _publish_policy(
         registry,
-        name="acme/world",
+        name="acme-world",
         interfaces=anchor.core_interface,
         kind=PluginKind.WORLD_PROVIDER,
     )
@@ -301,7 +301,7 @@ def test_tampered_blob_fails_closed(
     anchor: ScenarioSpec,
     idp: TestIdp,
 ) -> None:
-    digest = _publish_policy(registry, name="acme/tampered", interfaces=anchor.core_interface)
+    digest = _publish_policy(registry, name="acme-tampered", interfaces=anchor.core_interface)
     # Corrupt a stored blob so its content address no longer matches — resolution must fail closed.
     image = registry.read_manifest(digest)
     layer_hex = image["layers"][0]["digest"].split(":", 1)[1]
@@ -323,7 +323,7 @@ def test_nondeterministic_submission_is_flagged(
 ) -> None:
     digest = _publish_policy(
         registry,
-        name="acme/flaky",
+        name="acme-flaky",
         interfaces=anchor.core_interface,
         entrypoint=NONDETERMINISTIC_ENTRYPOINT,
     )
@@ -348,7 +348,7 @@ def test_nondeterministic_submission_is_flagged(
 def test_provenance_bundle_carries_full_lineage(
     service: LeaderboardService, registry: Registry, anchor: ScenarioSpec, idp: TestIdp
 ) -> None:
-    digest = _publish_policy(registry, name="acme/lineage", interfaces=anchor.core_interface)
+    digest = _publish_policy(registry, name="acme-lineage", interfaces=anchor.core_interface)
     client = _client(service)
     result_id = client.post(
         "/bench/submissions/hub",
@@ -387,7 +387,7 @@ def test_the_reexecution_audit_also_runs_in_the_sandbox(
     """
     sandbox = InProcessSandbox()
     hosted = LeaderboardService(registry=registry, authn=verifier, scorer=SandboxScorer(sandbox))
-    digest = _publish_policy(registry, name="acme/audit", interfaces=anchor.core_interface)
+    digest = _publish_policy(registry, name="acme-audit", interfaces=anchor.core_interface)
     _client(hosted).post(
         "/bench/submissions/hub",
         json={"scenario_id": ANCHOR_SCENARIO_ID, "hub_ref": digest},
@@ -422,7 +422,7 @@ def test_hub_digest_intake_end_to_end_through_the_real_sandbox(
         authn=verifier,
         scorer=SandboxScorer(SubprocessSandbox(python_path=(REPO_ROOT,))),
     )
-    digest = _publish_policy(registry, name="lab/real", interfaces=anchor.core_interface)
+    digest = _publish_policy(registry, name="lab-real", interfaces=anchor.core_interface)
 
     client = _client(hosted)
     job = client.post(
@@ -457,18 +457,18 @@ def test_rate_limit_rejects_over_limit(
         authn=verifier,
         scorer=SandboxScorer(InProcessSandbox()),
     )
-    _publish_policy(registry, name="acme/a", version="1.0.0", interfaces=anchor.core_interface)
-    _publish_policy(registry, name="acme/b", version="1.0.0", interfaces=anchor.core_interface)
+    _publish_policy(registry, name="acme-a", version="1.0.0", interfaces=anchor.core_interface)
+    _publish_policy(registry, name="acme-b", version="1.0.0", interfaces=anchor.core_interface)
     client = _client(limited)
     # Keyed on the *authenticated* subject since bench#29 — not a client-supplied identity field.
     first = client.post(
         "/bench/submissions/hub",
-        json={"scenario_id": ANCHOR_SCENARIO_ID, "hub_ref": "acme/a:1.0.0"},
+        json={"scenario_id": ANCHOR_SCENARIO_ID, "hub_ref": "acme-a:1.0.0"},
         headers=idp.header(subject="lab-1"),
     )
     second = client.post(
         "/bench/submissions/hub",
-        json={"scenario_id": ANCHOR_SCENARIO_ID, "hub_ref": "acme/b:1.0.0"},
+        json={"scenario_id": ANCHOR_SCENARIO_ID, "hub_ref": "acme-b:1.0.0"},
         headers=idp.header(subject="lab-1"),
     )
     assert first.status_code == 200
@@ -543,7 +543,7 @@ def test_a_manifest_without_an_entrypoint_is_rejected(
 ) -> None:
     """The evaluator *reads* the entrypoint (a string); it never imports it (bench#30)."""
     manifest = PluginManifest(
-        name="acme/no-entry",
+        name="acme-no-entry",
         version="1.0.0",
         kind=PluginKind.POLICY,
         core_interfaces=dict(anchor.core_interface),
@@ -552,7 +552,7 @@ def test_a_manifest_without_an_entrypoint_is_rejected(
     # than through `HubClient` because this artifact is deliberately malformed for Bench's purposes
     # — it has no `entrypoint` — and the point is what `submission_policy_ref` does with it.
     published = registry.publish(
-        name="acme/no-entry",
+        name="acme-no-entry",
         version="1.0.0",
         kind="policy",
         config=manifest.model_dump(mode="json"),
@@ -567,6 +567,6 @@ def test_submission_policy_ref_reads_without_importing(
 ) -> None:
     """bench#30: the service handles the reference *string*, never a live Policy object."""
     digest = _publish_policy(
-        registry, name="acme/ref", interfaces=anchor.core_interface, entrypoint=BASELINE_ENTRYPOINT
+        registry, name="acme-ref", interfaces=anchor.core_interface, entrypoint=BASELINE_ENTRYPOINT
     )
     assert submission_policy_ref(resolve_submission(registry, digest)) == BASELINE_ENTRYPOINT

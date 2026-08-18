@@ -26,8 +26,8 @@ from astro_mine.studio.hub.catalog import (
 
 __all__ = ["HOPPER", "ORBITER", "publish_asset"]
 
-ORBITER = "astro-mine.fleet.relay-orbiter:0.1.0"
-HOPPER = "astro-mine.fleet.hopper:0.1.0"
+ORBITER = "relay-orbiter:0.1.0"
+HOPPER = "hopper:0.1.0"
 
 
 def _sha(data: bytes) -> str:

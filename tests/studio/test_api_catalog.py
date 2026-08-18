@@ -24,7 +24,7 @@ def catalog_client(tmp_path: Path) -> TestClient:
     publish_asset(
         reg,
         private_pem,
-        asset_id="astro-mine.fleet.relay-orbiter",
+        asset_id="relay-orbiter",
         kind="orbiter",
         name="Relay Orbiter",
         tags=[CapabilityTag("mobility.orbiter"), CapabilityTag("comms.relay")],
@@ -32,7 +32,7 @@ def catalog_client(tmp_path: Path) -> TestClient:
     publish_asset(
         reg,
         private_pem,
-        asset_id="astro-mine.fleet.hopper",
+        asset_id="hopper",
         kind="hopper",
         name="Hopper Mk1",
         tags=[CapabilityTag("mobility.wheeled")],

@@ -511,7 +511,7 @@ def registry(tmp_path: Path) -> Registry:
 def _publish(
     registry: Registry,
     *,
-    name: str = "acme/prospector",
+    name: str = "acme-prospector",
     version: str = "1.0.0",
     interfaces: dict[str, str],
     entrypoint: str = BASELINE_REF,
@@ -560,7 +560,7 @@ def test_signed_and_attested_submission_verifies(registry: Registry, anchor: Sce
     """The happy path: cosign signature + SLSA provenance + SBOM, verified via Seal (RFC-0005)."""
     digest = _publish(registry, interfaces=anchor.core_interface)
     private_pem, public_pem = generate_keypair()
-    attest(registry, digest, private_key_pem=private_pem, name="acme/prospector", version="1.0.0")
+    attest(registry, digest, private_key_pem=private_pem, name="acme-prospector", version="1.0.0")
 
     verdict = verify_submission_attestations(
         registry, digest, AttestationPolicy(trusted_public_key_pem=public_pem)
@@ -578,7 +578,7 @@ def test_submission_signed_by_an_untrusted_key_is_rejected(
     attacker_private, _ = generate_keypair()
     _, our_public = generate_keypair()
     attest(
-        registry, digest, private_key_pem=attacker_private, name="acme/prospector", version="1.0.0"
+        registry, digest, private_key_pem=attacker_private, name="acme-prospector", version="1.0.0"
     )
 
     with pytest.raises(SupplyChainRejected):
@@ -643,7 +643,7 @@ def test_hub_intake_scores_an_attested_submission(
     )
     digest = _publish(registry, interfaces=anchor.core_interface)
     private_pem, _ = generate_keypair()
-    attest(registry, digest, private_key_pem=private_pem, name="acme/prospector", version="1.0.0")
+    attest(registry, digest, private_key_pem=private_pem, name="acme-prospector", version="1.0.0")
 
     job = (
         _client(hosted)
@@ -692,7 +692,7 @@ def test_audit_records_verification_outcomes(
     )
     digest = _publish(registry, interfaces=anchor.core_interface)
     private_pem, _ = generate_keypair()
-    attest(registry, digest, private_key_pem=private_pem, name="acme/prospector", version="1.0.0")
+    attest(registry, digest, private_key_pem=private_pem, name="acme-prospector", version="1.0.0")
 
     _client(hosted).post(
         "/bench/submissions/hub",
@@ -827,7 +827,7 @@ def test_the_spoofable_identity_field_is_gone(service: LeaderboardService, idp: 
         "/bench/submissions/hub",
         json={
             "scenario_id": ANCHOR_SCENARIO_ID,
-            "hub_ref": "acme/p:1.0.0",
+            "hub_ref": "acme-p:1.0.0",
             "identity": "someone-elses-quota",
         },
         headers=idp.header(),
